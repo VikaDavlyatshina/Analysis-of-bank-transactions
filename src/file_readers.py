@@ -1,0 +1,81 @@
+from datetime import datetime
+import pandas as pd
+from pandas.core.interchange.dataframe_protocol import DataFrame
+
+from config import setup_file_readers_logger
+
+# Создаём logger
+logger = setup_file_readers_logger()
+
+
+def load_transactions_from_excel(file_path):
+    """Загружает данные из Excel и выполняет базовое преобразование"""
+
+    # 1. Загружаем данные
+    df = pd.read_excel(file_path)
+
+    # 2. Создаём копию для безопасной работы
+    df_processed = df.copy()
+
+    # 3. Преобразуем даты
+    # Дата операции(со временем)
+    df_processed['Дата операции'] = pd.to_datetime(
+        df_processed['Дата операции'],
+        format='%d.%m.%Y %H:%M:%S',
+        dayfirst=True,
+        errors='coerce'
+    )
+
+    # Дата платежа(только дата)
+    df_processed['Дата платежа'] = pd.to_datetime(
+        df_processed['Дата платежа'],
+        format='%d.%m.%Y',
+        dayfirst=True,
+        errors='coerce'
+    )
+
+    # 4. Обрабатываем пустые значения
+
+    df_processed['Кэшбэк'] = df_processed['Кэшбэк'].fillna(0.0)  # Кэшбэк = 0 если пусто
+    df_processed['Номер карты'] = df['Номер карты'].fillna('')  # Номер карты = пустая строка если пусто
+
+    # 5. Последние 4 цифры карты
+    def extract_last_digits(card_str):
+            if isinstance(card_str, str) and card_str.startswith('*'):
+                return card_str[-4:]  # берем последние 4 символа
+            return ''
+
+    df_processed['Последние цифры карты'] = df_processed['Номер карты'].apply(extract_last_digits)
+
+    # 6. Используем абсолютную сумму для сортировки Топ-транзакций
+    # abs() делает отрицательные положительными: -100 → 100, 100 → 100
+    df_processed['Абсолютная сумма'] = df_processed['Сумма операции'].abs()
+
+    # 7. Расход по карте
+    # Если сумма отрицательная → берём модуль, если положительная → 0
+    df_processed['Расход по карте'] = df_processed['Сумма операции'].apply(
+        lambda x: abs(x) if x < 0 else 0
+    )
+
+    return  df_processed
+
+def filter_transactions_by_date_range(
+    df:DataFrame, start_date: datetime, end_date: datetime
+) -> pd.DataFrame:
+    """Фильтрует транзакции по диапазону дат"""
+
+    mask = (df['Дата операции'] >= start_date) & (df['Дата операции'] <= end_date)
+    filtered_df = df.loc[mask].copy()
+
+    logger.info(f"Отфильтровано по дате: {len(filtered_df)}")
+    return filtered_df
+
+
+def filter_successful_transactions(df:DataFrame) -> pd.DataFrame:
+    """ Фильтрует успешные транзакции со статусом OK"""
+
+    # Создаем булеву маску
+    mask = df['Статус'].str.upper().str.strip() == "OK"
+    successful_df = df.loc[mask].copy
+    logger.info(f"Успешных транзакций: {len(successful_df)}")
+    return successful_df
