@@ -37,7 +37,7 @@ def load_transactions_from_excel(file_path):
     # 4. Обрабатываем пустые значения
 
     df_processed['Кэшбэк'] = df_processed['Кэшбэк'].fillna(0.0)  # Кэшбэк = 0 если пусто
-    df_processed['Номер карты'] = df['Номер карты'].fillna('')  # Номер карты = пустая строка если пусто
+    df_processed['Номер карты'] = df_processed['Номер карты'].fillna('')  # Номер карты = пустая строка если пусто
 
     # 5. Последние 4 цифры карты
     def extract_last_digits(card_str):
@@ -76,6 +76,6 @@ def filter_successful_transactions(df:DataFrame) -> pd.DataFrame:
 
     # Создаем булеву маску
     mask = df['Статус'].str.upper().str.strip() == "OK"
-    successful_df = df.loc[mask].copy
+    successful_df = df.loc[mask].copy()
     logger.info(f"Успешных транзакций: {len(successful_df)}")
     return successful_df

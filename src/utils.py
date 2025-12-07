@@ -1,4 +1,4 @@
-import datetime
+from datetime import datetime
 import os
 from typing import Any, Dict, List, Optional
 import json
@@ -25,7 +25,7 @@ def get_greeting(now: Optional[datetime] = None) -> str:
     """
     try:
         if now is None:
-            now = datetime.datetime.now()
+            now = datetime.now()
         hour = now.hour
         if 5 <= hour < 12:
             return "Доброе утро"
@@ -177,7 +177,7 @@ def get_stock_prices(stocks: List[str]) -> List[Dict[str, Any]]:
     return results
 
 
-def load_user_settings(file_name: str = "user_settings.json") -> Dict[str, Any]:
+def load_user_settings(file_name: str) -> Dict[str, Any]:
     """Загружает пользовательские настройки из user_settings.json"""
 
     # 1. Настройки по умолчанию
