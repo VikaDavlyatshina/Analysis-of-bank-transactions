@@ -1,6 +1,6 @@
 from datetime import datetime
 import pandas as pd
-from pandas.core.interchange.dataframe_protocol import DataFrame
+from typing import Optional
 
 from config import setup_file_readers_logger
 
@@ -13,6 +13,8 @@ def load_transactions_from_excel(file_path):
 
     # 1. Загружаем данные
     df = pd.read_excel(file_path)
+    logger.info(f"Загружено строк: {len(df)}, колонок: {len(df.columns)}")
+    logger.info(f"Колонки в файле: {list(df.columns)}")
 
     # 2. Создаём копию для безопасной работы
     df_processed = df.copy()
@@ -26,26 +28,40 @@ def load_transactions_from_excel(file_path):
         errors='coerce'
     )
 
-    # Дата платежа(только дата)
-    df_processed['Дата платежа'] = pd.to_datetime(
-        df_processed['Дата платежа'],
-        format='%d.%m.%Y',
-        dayfirst=True,
-        errors='coerce'
-    )
+    # Проверяем сколько дат не распарсилось
+    failed_dates = df_processed['Дата операции'].isna().sum()
+    if failed_dates > 0:
+        logger.warning(f"Не удалось распарсить {failed_dates} дат операции")
+
+    # Дата платежа
+    if 'Дата платежа' in df_processed.columns:
+        df_processed['Дата платежа'] = pd.to_datetime(
+            df_processed['Дата платежа'],
+            format='%d.%m.%Y',
+            dayfirst=True,
+            errors='coerce'
+        )
 
     # 4. Обрабатываем пустые значения
 
     df_processed['Кэшбэк'] = df_processed['Кэшбэк'].fillna(0.0)  # Кэшбэк = 0 если пусто
     df_processed['Номер карты'] = df_processed['Номер карты'].fillna('')  # Номер карты = пустая строка если пусто
 
-    # 5. Последние 4 цифры карты
-    def extract_last_digits(card_str):
-            if isinstance(card_str, str) and card_str.startswith('*'):
-                return card_str[-4:]  # берем последние 4 символа
-            return ''
+    # Убираем лишние пробелы у текстовых полей
+    if 'Описание' in df_processed.columns:
+        df_processed['Описание'] = df_processed['Описание'].fillna('Без описания')
+        df_processed['Описание'] = df_processed['Описание'].str.strip()
 
-    df_processed['Последние цифры карты'] = df_processed['Номер карты'].apply(extract_last_digits)
+    if 'Категория' in df_processed.columns:
+        df_processed['Категория'] = df_processed['Категория'].fillna('Не указано')
+        df_processed['Категория'] = df_processed['Категория'].str.strip()
+
+
+    # 5. Последние 4 цифры карты
+    df_processed['Последние цифры карты'] = df_processed['Номер карты'].apply(
+        lambda x: x[-4:] if isinstance(x, str) and x.startswith('*') else '0000'
+    )
+
 
     # 6. Используем абсолютную сумму для сортировки Топ-транзакций
     # abs() делает отрицательные положительными: -100 → 100, 100 → 100
@@ -57,10 +73,24 @@ def load_transactions_from_excel(file_path):
         lambda x: abs(x) if x < 0 else 0
     )
 
-    return  df_processed
+    # 8. Тип операции (опционально, но полезно)
+    df_processed['Тип операции'] = df_processed['Сумма операции'].apply(
+        lambda x: 'Расход' if x < 0 else 'Доход'
+    )
+
+    # 9. Месяц для группировки
+    df_processed['Месяц'] = df_processed['Дата операции'].dt.strftime('%Y-%m')
+
+
+    # Логируем итоги
+    logger.info(f"Обработка завершена. Колонок: {len(df_processed.columns)}")
+    logger.info(f"Добавлены колонки: 'Абсолютная сумма', 'Расход по карте', 'Тип операции', 'Месяц'")
+
+    return df_processed
+
 
 def filter_transactions_by_date_range(
-    df:DataFrame, start_date: datetime, end_date: datetime
+    df:pd.DataFrame, start_date: datetime, end_date: datetime
 ) -> pd.DataFrame:
     """Фильтрует транзакции по диапазону дат"""
 
@@ -71,7 +101,7 @@ def filter_transactions_by_date_range(
     return filtered_df
 
 
-def filter_successful_transactions(df:DataFrame) -> pd.DataFrame:
+def filter_successful_transactions(df:pd.DataFrame) -> pd.DataFrame:
     """ Фильтрует успешные транзакции со статусом OK"""
 
     # Создаем булеву маску

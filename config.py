@@ -7,6 +7,7 @@ DATA_DIR = PROJECT_ROOT / "data"
 USER_SETTINGS = PROJECT_ROOT/ "user_settings.json"
 LOGS_DIR = PROJECT_ROOT / "logs"
 TEST_LOGS_DIR = PROJECT_ROOT / "tests" / "logs_test"
+REPORTS_DIR = PROJECT_ROOT/"reports"
 
 # Создаём папки если их нет
 LOGS_DIR.mkdir(exist_ok=True)
@@ -42,6 +43,9 @@ def setup_utils_logger():
 
 def setup_views_logger():
     return create_logger("views", LOGS_DIR / "views.log")
+
+def setup_reports_logger():
+    return create_logger("reports", LOGS_DIR / "reports.log")
 
 def setup_main_logger():
     return create_logger("views", LOGS_DIR / "main.log")

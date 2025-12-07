@@ -72,8 +72,11 @@ def get_top_transactions(df: pd.DataFrame, limit: int = 5) -> List[Dict[str, Any
     # 2. Создаём копию таблицы
     df_copy = df.copy()
 
-    # 3. Добавляем новую колонку с абсолютной суммой
-    df_copy['abs_amount'] = df_copy['Сумма операции'].abs()
+    # 3. Используем колонку с абсолютной суммой
+    if 'Абсолютная сумма' not in df_copy.columns:
+        # Если по какой-то причине её нет - создаем
+        df_copy['Абсолютная сумма'] = df_copy['Сумма операции'].abs()
+        logger.warning("Колонка 'Абсолютная сумма' не найдена, создаем временно")
 
     # 4. Сортируем таблицу по абсолютной сумме(по убыванию)
     # ascending=False - "от большего к меньшему"
@@ -180,7 +183,7 @@ def generate_financial_report(date_string: str) -> Dict[str, Any]:
 
     try:
         # Загружаем как DataFrame
-        df = load_transactions_from_excel(file_path=EXCEL_FILE)
+        df = load_transactions_from_excel(EXCEL_FILE)
 
         # Фильтруем по дате
         filtered_df = filter_transactions_by_date_range(df, month_start, target_date)
