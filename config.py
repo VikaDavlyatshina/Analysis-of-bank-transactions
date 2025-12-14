@@ -7,7 +7,11 @@ DATA_DIR = PROJECT_ROOT / "data"
 USER_SETTINGS = PROJECT_ROOT/ "user_settings.json"
 LOGS_DIR = PROJECT_ROOT / "logs"
 TEST_LOGS_DIR = PROJECT_ROOT / "tests" / "logs_test"
-REPORTS_DIR = PROJECT_ROOT/"reports"
+REPORTS_DIR =  PROJECT_ROOT / "reports"
+
+# Создаём папку reports если её нет
+REPORTS_DIR.mkdir(exist_ok=True)
+
 
 # Создаём папки если их нет
 LOGS_DIR.mkdir(exist_ok=True)
