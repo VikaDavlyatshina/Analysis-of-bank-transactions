@@ -48,7 +48,6 @@ def get_cards_summary(df: pd.DataFrame) -> List[Dict[str, Any]]:
             'last_digits': last_digits,
             'total_spent': round(total_spent, 2),
             'cashback': round(cashback, 2),
-            'transactions': len(group)
         })
 
     # 3. Сортируем по тратам
@@ -212,16 +211,19 @@ def generate_financial_report(date_string: str) -> Dict[str, Any]:
     logger.info(f"Отчет готов! Карт: {len(cards_info)}, Топ операций: {len(top_transactions)}")
     return report
 
-def save_report(report: Dict[str, Any], filename: str = "financial_report.json"):
-    """Сохраняет отчёт в JSON файл"""
+def save_report(report: dict, filename: str = "report.json", reports_dir=REPORTS_DIR):
+    """Сохраняет отчет в JSON файл в указанной папке"""
     try:
-
-        file_path = REPORTS_DIR / filename
-
+        reports_dir.mkdir(exist_ok=True)  # на случай, если папки нет
+        file_path = reports_dir / filename
         with open(file_path, "w", encoding="utf-8") as f:
             json.dump(report, f, ensure_ascii=False, indent=2)
-        logger.info(f" Отчёт сохранён в {file_path}")
+        logger.info(f"Отчет сохранен в {file_path}")
         return True
     except Exception as e:
-        logger.error(f" Ошибка сохранения: {e}")
+        logger.error(f"Ошибка сохранения: {e}")
         return False
+
+ex_report = generate_financial_report("2019-10- 12:00:00")
+save_report(ex_report, "my_report.json")
+generate_financial_report("2019-10-10 12:00:00")

@@ -12,6 +12,8 @@ REPORTS_DIR =  PROJECT_ROOT / "reports"
 # Создаём папку reports если её нет
 REPORTS_DIR.mkdir(exist_ok=True)
 
+TEST_REPORTS_DIR = PROJECT_ROOT / "reports_test"
+TEST_REPORTS_DIR.mkdir(exist_ok=True)
 
 # Создаём папки если их нет
 LOGS_DIR.mkdir(exist_ok=True)

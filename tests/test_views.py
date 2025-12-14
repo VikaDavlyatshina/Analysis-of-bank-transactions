@@ -14,7 +14,6 @@ def test_get_cards_summary(sample_transactions_df):
     assert card['last_digits'] == '1111'
     assert card['total_spent'] == 1500
     assert card['cashback'] == 15
-    assert card['transactions'] == 2
 
 def test_get_top_transactions(sample_transactions_df):
     result = get_top_transactions(sample_transactions_df, limit=2)

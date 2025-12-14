@@ -1,10 +1,12 @@
-from config import setup_services_logger
+from config import setup_services_logger, REPORTS_DIR
+from src.views import save_report
 import re
 from typing import Any, Dict, List
 
 logger = setup_services_logger()
 
-def investment_bank(month: str, transactions: List[Dict[str, Any]], limit: int) -> float:
+
+def investment_bank(month: str, transactions: List[Dict[str, Any]], limit: int, reports_dir=REPORTS_DIR) -> float:
     """Рассчитывает сумму для Инвесткопилки на основе округления трат"""
 
     logger.info(f"Запуск Инвесткопилки: месяц={month}, лимит={limit}, транзакций={len(transactions)}")
@@ -22,8 +24,7 @@ def investment_bank(month: str, transactions: List[Dict[str, Any]], limit: int) 
 
     filtered_transactions = filter(is_target_month_and_spending, transactions)
 
-    # 2. Расчет общей суммы через генератор и sum()
-
+    # 2. Расчет суммы для копилки от одной транзакции
     def calculate_rounding(transaction: Dict[str, Any]) -> float:
         """Рассчитывает сумму для копилки от одной транзакции."""
         try:
@@ -31,124 +32,86 @@ def investment_bank(month: str, transactions: List[Dict[str, Any]], limit: int) 
             rounded_amount = ((amount + limit - 1) // limit) * limit
             investment = rounded_amount - amount
             logger.debug(f"Транзакция: {amount:.2f} → округление: {rounded_amount:.2f}, инвестиция: {investment:.2f}")
-            return investment
+            return float(investment)
         except Exception as e:
             logger.warning(f"Ошибка расчета для транзакции: {e}")
             return 0.0
 
-    # Используем генераторное выражение с sum()
-
-    total_investment = sum(calculate_rounding(trans) for trans in filtered_transactions)
+    # 3. Суммируем все инвестиции и приводим к float
+    total_investment = float(sum(calculate_rounding(trans) for trans in filtered_transactions))
     logger.info(f"ИТОГ: сумма для Инвесткопилки = {total_investment:.2f} руб")
+
+    # 4. Сохраняем отчет в JSON
+    report_data = {
+        "month": month,
+        "limit": limit,
+        "total_investment": total_investment
+    }
+    save_report(report_data,
+                filename="investment_bank_report.json",
+                reports_dir=reports_dir)
+
     return total_investment
 
 
-def simple_search(transactions: List[Dict[str, Any]], search_string: str) -> Dict[str, Any]:
-    """Ищет транзакции по строке в описании"""
+def simple_search(transactions: List[Dict[str, Any]], search_string: str, reports_dir=REPORTS_DIR) -> Dict[str, Any]:
+    """Ищет транзакции по строке в описании и категории"""
 
-    try:
-        logger.info(f"Запуск простого поиска по строке: '{search_string}'")
-        logger.info(f"Всего транзакций для поиска: {len(transactions)}")
-
-        if not search_string:
-            logger.warning("Пустая строка поиска")
-            return {
-                "service": "simple_search",
-                "status": "empty",
-                "search_string": "",
-                "found_count": 0,
-                "transactions": [],
-                 "message": "Строка поиска пуста"
-            }
-
-        # Функция - предикат для фильтрации
-        def contains_search_text(transaction: Dict[str, Any]) -> bool:
-            """Проверяет, содержит ли транзакция искомую сумму"""
-            try:
-                description = transaction.get("Описание", "").lower()
-                category = transaction.get("Категория", "").lower()
-                search_lower = search_string.lower()
-
-                found_in_desc = search_lower in description
-                found_in_cat = search_lower in category
-
-                if found_in_desc or found_in_cat:
-                    logger.debug(f"Найдено в транзакции: описание='{description[:50]}...', категория='{category}'")
-
-                return found_in_desc or found_in_cat
-            except Exception as e:
-                logger.debug(f"Ошибка проверки транзакции: {e}")
-                return False
-
-        # Применяем фильтр и преобразуем в список
-        result_transactions = list(filter(contains_search_text, transactions))
-
-        logger.info(f"Поиск завершен: найдено {len(result_transactions)} транзакций")
-
+    if not search_string:
         return {
+            "service": "simple_search",
+            "status": "empty",
+            "search_string": "",
+            "found_count": 0,
+            "transactions": [],
+            "message": "Строка поиска пуста"
+        }
+
+    def contains_search_text(transaction: Dict[str, Any]) -> bool:
+        try:
+            desc = transaction.get("Описание", "").lower()
+            cat = transaction.get("Категория", "").lower()
+            search_lower = search_string.lower()
+            return search_lower in desc or search_lower in cat
+        except Exception:
+            return False
+
+    result_transactions = list(filter(contains_search_text, transactions))
+    result = {
         "service": "simple_search",
         "status": "success",
         "search_string": search_string,
         "found_count": len(result_transactions),
         "transactions": result_transactions,
         "message": f"Найдено {len(result_transactions)} транзакций по запросу '{search_string}'"
-        }
+    }
 
-    except Exception as e:
-        logger.error(f"Ошибка в simple_search: {e}")
+    save_report(result, filename="simple_search_report.json", reports_dir=reports_dir)
+    return result
+
+
+def find_phone_numbers(transactions: List[Dict[str, Any]], reports_dir=REPORTS_DIR) -> Dict[str, Any]:
+    """Ищет транзакции с телефонными номерами в описании"""
+
+    if not transactions:
         return {
-            "service": "simple_search",
-            "status": "error",
-            "error": str(e),
+            "service": "find_phone_numbers",
+            "status": "empty",
             "found_count": 0,
             "transactions": [],
+            "message": "Нет транзакций для поиска"
         }
 
+    phone_pattern = re.compile(r"(?:\+7|7|8)\s?\(?\d{3}\)?[\s\-]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2}", re.IGNORECASE)
+    found_transactions = [t for t in transactions if phone_pattern.search(t.get("Описание", ""))]
 
-def find_phone_numbers(transactions: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """
-    Ищет транзакции по телефонным номерам в описании
-    """
-    try:
-        logger.info("Поиск транзакций с телефонными номерами")
-        if not transactions:
-            logger.warning("Пустой список транзакций")
-            return {
-                "service": "find_phone_numbers",
-                 "status": "empty",
-                  "found_count": 0,
-                  "transactions": [],
-                   "message": "Нет транзакций для поиска"
-            }
-
-        found_operations = []
-
-        # Используем регулярное выражение для поиска номеров
-        phone_pattern = re.compile(r"(?:\+7|7|8)\s?\(?\d{3}\)?[\s\-]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2}", re.IGNORECASE)
-
-        # Перебираем каждую операцию в списке
-        for operation in transactions:
-          # Получаем описание операции
-          description = operation.get("Описание", "")
-
-          if phone_pattern.search(description):
-              found_operations.append(operation)
-
-        logger.info(f"Поиск завершен: найдено {len(found_operations)} транзакций с номерами")
-        return {
-                "service": "find_phone_numbers",
-                "status": "success",
-                "found_count": len(found_operations),
-                "transactions": found_operations,
-                 "message": f"Найдено {len(found_operations)} транзакций с телефонными номерами"
-            }
-
-    except Exception as e:
-        logger.error(f"Ошибка в find_phone_numbers: {e}")
-        return {
+    result = {
         "service": "find_phone_numbers",
-        "status": "error",
-        "error": str(e),
-        "found_count": 0,
-        "transactions": []
-         }
+        "status": "success",
+        "found_count": len(found_transactions),
+        "transactions": found_transactions,
+        "message": f"Найдено {len(found_transactions)} транзакций с телефонными номерами"
+    }
+
+    save_report(result, filename="find_phone_numbers_report.json", reports_dir=reports_dir)
+    return result
