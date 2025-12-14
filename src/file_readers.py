@@ -1,6 +1,5 @@
 from datetime import datetime
 import pandas as pd
-from typing import Optional
 
 from config import setup_file_readers_logger
 

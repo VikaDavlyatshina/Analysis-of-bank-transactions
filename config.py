@@ -50,6 +50,9 @@ def setup_reports_logger():
 def setup_main_logger():
     return create_logger("views", LOGS_DIR / "main.log")
 
+def setup_services_logger():
+    return create_logger("services", LOGS_DIR / "services.log")
+
 # ---------- Логгеры для тестов ----------
 def setup_test_file_readers_logger():
     return create_logger("test_file_readers", TEST_LOGS_DIR / "test_file_readers.log")

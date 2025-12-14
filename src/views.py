@@ -80,7 +80,7 @@ def get_top_transactions(df: pd.DataFrame, limit: int = 5) -> List[Dict[str, Any
 
     # 4. Сортируем таблицу по абсолютной сумме(по убыванию)
     # ascending=False - "от большего к меньшему"
-    df_sorted = df_copy.sort_values('abs_amount', ascending=False)
+    df_sorted = df_copy.sort_values('Абсолютная сумма', ascending=False)
 
     # 5. Берём первые limit-строк (топ-N транзакций)
     top_count = min(limit, len(df_sorted))
