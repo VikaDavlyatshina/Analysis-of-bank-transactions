@@ -3,6 +3,7 @@ import os
 from typing import Any, Dict, List, Optional
 import json
 from pathlib import Path
+import pandas as pd
 
 import requests
 from dotenv import load_dotenv
@@ -18,6 +19,30 @@ load_dotenv()
 API_KEY_Freecurrencyapi = os.getenv("API_KEY_Freecurrencyapi")  # Получение токена API для валют
 API_KEY_twelvedata = os.getenv("API_KEY_twelvedata")  # Получение токена API для валют
 
+def filter_transactions_by_date(
+    df:pd.DataFrame, start_date: datetime, end_date: datetime
+) -> pd.DataFrame:
+    """Фильтрует транзакции по диапазону дат"""
+
+    temp_df = df.copy()  # Создаём копию
+
+    mask = (temp_df['Дата операции'] >= start_date) & (temp_df['Дата операции'] <= end_date)
+    filtered_df = temp_df.loc[mask]
+
+    logger.info(f"Отфильтровано по дате: {len(filtered_df)}")
+    return filtered_df
+
+def filter_successful_transaction(df):
+    """Фильтрация успешных транзакций"""
+
+    temp_df = df.copy()
+
+    mask = temp_df['Статус'] == "OK"
+    successful_df = temp_df.loc[mask]
+
+    return successful_df
+
+
 def get_greeting(now: Optional[datetime] = None) -> str:
     """
     Возвращает приветствие в зависимости от текущего времени.
@@ -31,7 +56,7 @@ def get_greeting(now: Optional[datetime] = None) -> str:
             return "Доброе утро"
         if 12 <= hour < 17:
             return "Добрый день"
-        if 17 <= hour < 23:
+        if 17 <= hour < 22:
             return "Добрый вечер"
         return "Доброй ночи"
     except Exception:
@@ -223,5 +248,29 @@ def load_user_settings(file_name: str) -> Dict[str, Any]:
     except Exception as e:
         logger.error(f"Неизвестная ошибка при чтении файла '{file_name}': {e}")
         return default_settings
+
+def convert_transactions_to_rub(df: pd.DataFrame, currency_rates: Dict[str, float]) -> pd.DataFrame:
+    """Конвертирует все сумму операций в рубли"""
+
+    df = df.copy()
+
+    def convert_row(row):
+        currency = row['Валюта операции']
+        amount = row['Сумма операции']
+
+        if currency == "RUB":
+            return amount
+
+        rate = currency_rates.get(currency)
+
+        if rate is None:
+            logger.warning(f"Нет курса для валюты {currency}")
+            return amount  # или 0, или выбросить строку
+
+        return amount * rate
+
+    df["Сумма операции"] = df.apply(convert_row, axis=1)
+
+    return df
 
 
