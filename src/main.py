@@ -1,14 +1,15 @@
 import json
-import pandas as pd
 from datetime import datetime
-from typing import Optional, List, Dict, Any
+from typing import Any, Dict, List, Optional
 
+import pandas as pd
+
+from config import EXCEL_FILE, USER_SETTINGS
 from src.file_readers import load_transactions_from_excel
 from src.reports import spending_by_category
-from src.services import investment_bank, simple_search, find_phone_numbers
-from src.views import generate_financial_report
+from src.services import find_phone_numbers, investment_bank, simple_search
 from src.utils import get_greeting, load_user_settings
-from config import EXCEL_FILE, USER_SETTINGS
+from src.views import generate_financial_report
 
 
 def parse_datetime_input(datetime_str: str) -> str:
@@ -71,7 +72,8 @@ def main() -> None:
         # Показываем базовую информацию о данных
         if len(transactions_df) > 0:
             print(
-                f"Период данных: {transactions_df['Дата операции'].min().date()} - {transactions_df['Дата операции'].max().date()}")
+                f"Период данных: {transactions_df['Дата операции'].min().date()} - {transactions_df['Дата операции'].max().date()}"
+            )
     except Exception as e:
         print(f"Не удалось загрузить данные из файла: {e}")
         print("Убедитесь, что файл находится в правильной папке и имеет правильный формат.")
@@ -83,9 +85,9 @@ def main() -> None:
         user_settings = load_user_settings(str(USER_SETTINGS))
         print(f"Настройки пользователя загружены")
         if user_settings:
-            if 'user_currencies' in user_settings:
+            if "user_currencies" in user_settings:
                 print(f"   Валюты: {', '.join(user_settings['user_currencies'])}")
-            if 'user_stocks' in user_settings:
+            if "user_stocks" in user_settings:
                 print(f"   Акции: {', '.join(user_settings['user_stocks'])}")
     except Exception as e:
         print(f"Не удалось загрузить настройки: {e}")
@@ -164,7 +166,7 @@ def main() -> None:
                     save_report = input("\nСохранить отчет в файл? (да/нет): ").strip().lower()
                     if save_report in ["да", "д", "yes", "y", "1"]:
                         filename = f"report_{parsed_datetime.replace(':', '-').replace(' ', '_')}.json"
-                        with open(filename, 'w', encoding='utf-8') as f:
+                        with open(filename, "w", encoding="utf-8") as f:
                             json.dump(report, f, ensure_ascii=False, indent=2)
                         print(f"Отчет сохранен в файл: {filename}")
             except Exception as e:
@@ -191,7 +193,7 @@ def main() -> None:
 
             # Преобразуем DataFrame в список словарей
             try:
-                transactions_list = transactions_df.to_dict('records')
+                transactions_list = transactions_df.to_dict("records")
             except Exception as e:
                 print(f"Ошибка преобразования данных: {e}")
                 continue
@@ -333,8 +335,8 @@ def main() -> None:
             print("=" * 50)
 
             # Показываем доступные категории
-            if 'Категория' in transactions_df.columns:
-                categories = transactions_df['Категория'].unique()
+            if "Категория" in transactions_df.columns:
+                categories = transactions_df["Категория"].unique()
                 print(f"\nДоступные категории ({len(categories)}):")
                 for i, cat in enumerate(sorted(categories)[:15], 1):
                     print(f"  {i}. {cat}")
@@ -351,8 +353,8 @@ def main() -> None:
                 continue
 
             # Проверяем, существует ли такая категория
-            if 'Категория' in transactions_df.columns:
-                if category not in transactions_df['Категория'].values:
+            if "Категория" in transactions_df.columns:
+                if category not in transactions_df["Категория"].values:
                     print(f"Категория '{category}' не найдена в данных")
                     continue
 
@@ -378,7 +380,7 @@ def main() -> None:
                     print(f"Сохранен в папке 'reports/'")
 
                     # Показываем результат
-                    total_spent = result['Сумма'].sum()
+                    total_spent = result["Сумма"].sum()
                     print(f"\nИтоги по категории '{category}':")
                     print(f"   Дата анализа: {date_input}")
                     print(f"   Количество транзакций: {len(result)}")
@@ -403,34 +405,35 @@ def main() -> None:
             print(f"Общая статистика:")
             print(f"   Всего транзакций: {len(transactions_df)}")
             print(
-                f"   Период: {transactions_df['Дата операции'].min().date()} - {transactions_df['Дата операции'].max().date()}")
+                f"   Период: {transactions_df['Дата операции'].min().date()} - {transactions_df['Дата операции'].max().date()}"
+            )
 
-            if 'Категория' in transactions_df.columns:
-                categories_count = transactions_df['Категория'].nunique()
+            if "Категория" in transactions_df.columns:
+                categories_count = transactions_df["Категория"].nunique()
                 print(f"\nКатегории:")
                 print(f"   Уникальных категорий: {categories_count}")
 
                 # Топ категорий
                 print(f"\nТоп-10 категорий по количеству операций:")
-                top_categories = transactions_df['Категория'].value_counts().head(10)
+                top_categories = transactions_df["Категория"].value_counts().head(10)
                 for cat, count in top_categories.items():
                     percentage = (count / len(transactions_df)) * 100
                     print(f"   {cat}: {count} операций ({percentage:.1f}%)")
 
-            if 'Тип операции' in transactions_df.columns:
-                expenses = len(transactions_df[transactions_df['Тип операции'] == 'Расход'])
-                income = len(transactions_df[transactions_df['Тип операции'] == 'Доход'])
+            if "Тип операции" in transactions_df.columns:
+                expenses = len(transactions_df[transactions_df["Тип операции"] == "Расход"])
+                income = len(transactions_df[transactions_df["Тип операции"] == "Доход"])
                 print(f"\nТипы операций:")
                 print(f"   Расходов: {expenses}")
                 print(f"   Доходов: {income}")
 
-            if 'Сумма операции' in transactions_df.columns:
+            if "Сумма операции" in transactions_df.columns:
                 print(f"\nФинансовые показатели:")
                 if expenses > 0:
-                    avg_expense = transactions_df[transactions_df['Тип операции'] == 'Расход']['Сумма операции'].mean()
+                    avg_expense = transactions_df[transactions_df["Тип операции"] == "Расход"]["Сумма операции"].mean()
                     print(f"   Средний расход: {avg_expense:.2f} руб")
                 if income > 0:
-                    avg_income = transactions_df[transactions_df['Тип операции'] == 'Доход']['Сумма операции'].mean()
+                    avg_income = transactions_df[transactions_df["Тип операции"] == "Доход"]["Сумма операции"].mean()
                     print(f"   Средний доход: {avg_income:.2f} руб")
 
         elif choice == 5:
@@ -450,4 +453,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

@@ -1,7 +1,8 @@
-from config import setup_services_logger, REPORTS_DIR
-from src.views import save_report
 import re
 from typing import Any, Dict, List
+
+from config import REPORTS_DIR, setup_services_logger
+from src.views import save_report
 
 logger = setup_services_logger()
 
@@ -42,14 +43,8 @@ def investment_bank(month: str, transactions: List[Dict[str, Any]], limit: int, 
     logger.info(f"ИТОГ: сумма для Инвесткопилки = {total_investment:.2f} руб")
 
     # 4. Сохраняем отчет в JSON
-    report_data = {
-        "month": month,
-        "limit": limit,
-        "total_investment": total_investment
-    }
-    save_report(report_data,
-                filename="investment_bank_report.json",
-                reports_dir=reports_dir)
+    report_data = {"month": month, "limit": limit, "total_investment": total_investment}
+    save_report(report_data, filename="investment_bank_report.json", reports_dir=reports_dir)
 
     return total_investment
 
@@ -64,7 +59,7 @@ def simple_search(transactions: List[Dict[str, Any]], search_string: str, report
             "search_string": "",
             "found_count": 0,
             "transactions": [],
-            "message": "Строка поиска пуста"
+            "message": "Строка поиска пуста",
         }
 
     def contains_search_text(transaction: Dict[str, Any]) -> bool:
@@ -83,7 +78,7 @@ def simple_search(transactions: List[Dict[str, Any]], search_string: str, report
         "search_string": search_string,
         "found_count": len(result_transactions),
         "transactions": result_transactions,
-        "message": f"Найдено {len(result_transactions)} транзакций по запросу '{search_string}'"
+        "message": f"Найдено {len(result_transactions)} транзакций по запросу '{search_string}'",
     }
 
     save_report(result, filename="simple_search_report.json", reports_dir=reports_dir)
@@ -99,7 +94,7 @@ def find_phone_numbers(transactions: List[Dict[str, Any]], reports_dir=REPORTS_D
             "status": "empty",
             "found_count": 0,
             "transactions": [],
-            "message": "Нет транзакций для поиска"
+            "message": "Нет транзакций для поиска",
         }
 
     phone_pattern = re.compile(r"(?:\+7|7|8)\s?\(?\d{3}\)?[\s\-]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2}", re.IGNORECASE)
@@ -110,7 +105,7 @@ def find_phone_numbers(transactions: List[Dict[str, Any]], reports_dir=REPORTS_D
         "status": "success",
         "found_count": len(found_transactions),
         "transactions": found_transactions,
-        "message": f"Найдено {len(found_transactions)} транзакций с телефонными номерами"
+        "message": f"Найдено {len(found_transactions)} транзакций с телефонными номерами",
     }
 
     save_report(result, filename="find_phone_numbers_report.json", reports_dir=reports_dir)

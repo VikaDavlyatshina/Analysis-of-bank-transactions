@@ -1,10 +1,10 @@
-from datetime import datetime
-import os
-from typing import Any, Dict, List, Optional
 import json
+import os
+from datetime import datetime
 from pathlib import Path
-import pandas as pd
+from typing import Any, Dict, List, Optional
 
+import pandas as pd
 import requests
 from dotenv import load_dotenv
 
@@ -19,25 +19,25 @@ load_dotenv()
 API_KEY_Freecurrencyapi = os.getenv("API_KEY_Freecurrencyapi")  # Получение токена API для валют
 API_KEY_twelvedata = os.getenv("API_KEY_twelvedata")  # Получение токена API для валют
 
-def filter_transactions_by_date(
-    df:pd.DataFrame, start_date: datetime, end_date: datetime
-) -> pd.DataFrame:
+
+def filter_transactions_by_date(df: pd.DataFrame, start_date: datetime, end_date: datetime) -> pd.DataFrame:
     """Фильтрует транзакции по диапазону дат"""
 
     temp_df = df.copy()  # Создаём копию
 
-    mask = (temp_df['Дата операции'] >= start_date) & (temp_df['Дата операции'] <= end_date)
+    mask = (temp_df["Дата операции"] >= start_date) & (temp_df["Дата операции"] <= end_date)
     filtered_df = temp_df.loc[mask]
 
     logger.info(f"Отфильтровано по дате: {len(filtered_df)}")
     return filtered_df
+
 
 def filter_successful_transaction(df):
     """Фильтрация успешных транзакций"""
 
     temp_df = df.copy()
 
-    mask = temp_df['Статус'] == "OK"
+    mask = temp_df["Статус"] == "OK"
     successful_df = temp_df.loc[mask]
 
     return successful_df
@@ -155,42 +155,26 @@ def get_stock_prices(stocks: List[str]) -> List[Dict[str, Any]]:
             # Проверяем что цена есть в ответе
             if "price" in data and data["price"]:
                 price = float(data["price"])
-                results.append({
-                    "stock": symbol,
-                    "price": round(price, 2),
-                    "source": "twelvedata"
-                })
+                results.append({"stock": symbol, "price": round(price, 2), "source": "twelvedata"})
 
                 logger.info(f"Цена {symbol}: ${price:.2f} (реальные данные)")
 
             else:
                 # Если нет цены в ответе - используем заглушку
                 fallback_price = fallback_prices.get(symbol, 100.0)
-                results.append({
-                    "stock": symbol,
-                    "price": fallback_price,
-                    "source": "fallback_no_data"
-                })
+                results.append({"stock": symbol, "price": fallback_price, "source": "fallback_no_data"})
                 logger.warning(f"Цена {symbol}: ${fallback_price:.2f} (заглушка - нет данных в API)")
 
-        except requests.exceptions.HTTPError as e:
+        except requests.exceptions.HTTPError:
             # Ошибка HTTP
             fallback_price = fallback_prices.get(symbol, 100.0)
-            results.append({
-                "stock": symbol,
-                "price": fallback_price,
-                "source": "fallback_http_error"
-            })
+            results.append({"stock": symbol, "price": fallback_price, "source": "fallback_http_error"})
             logger.warning(f"Цена {symbol}: ${fallback_price:.2f} (заглушка - ошибка HTTP)")
 
-        except (requests.exceptions.RequestException, Exception) as e:
+        except (requests.exceptions.RequestException, Exception):
             # Другие ошибки(сеть, таймаут и т.д)
             fallback_price = fallback_prices.get(symbol, 100.0)
-            results.append({
-                "stock": symbol,
-                "price": fallback_price,
-                "source": "fallback_error"
-            })
+            results.append({"stock": symbol, "price": fallback_price, "source": "fallback_error"})
             logger.warning(f"Цена {symbol}: ${fallback_price:.2f} (заглушка - ошибка подключения)")
 
     # Статистика
@@ -206,10 +190,7 @@ def load_user_settings(file_name: str) -> Dict[str, Any]:
     """Загружает пользовательские настройки из user_settings.json"""
 
     # 1. Настройки по умолчанию
-    default_settings = {
-        "user_currencies": ["USD", "EUR"],
-        "user_stocks": ["AAPL", "MSFT", "GOOGL", "AMZN", "TSLA"]
-    }
+    default_settings = {"user_currencies": ["USD", "EUR"], "user_stocks": ["AAPL", "MSFT", "GOOGL", "AMZN", "TSLA"]}
 
     # 2. Проверяем существование файла
     settings_path = Path(file_name)
@@ -249,14 +230,15 @@ def load_user_settings(file_name: str) -> Dict[str, Any]:
         logger.error(f"Неизвестная ошибка при чтении файла '{file_name}': {e}")
         return default_settings
 
+
 def convert_transactions_to_rub(df: pd.DataFrame, currency_rates: Dict[str, float]) -> pd.DataFrame:
     """Конвертирует все сумму операций в рубли"""
 
     df = df.copy()
 
     def convert_row(row):
-        currency = row['Валюта операции']
-        amount = row['Сумма операции']
+        currency = row["Валюта операции"]
+        amount = row["Сумма операции"]
 
         if currency == "RUB":
             return amount
@@ -272,5 +254,3 @@ def convert_transactions_to_rub(df: pd.DataFrame, currency_rates: Dict[str, floa
     df["Сумма операции"] = df.apply(convert_row, axis=1)
 
     return df
-
-

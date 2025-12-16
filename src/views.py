@@ -1,13 +1,23 @@
-from datetime import datetime
-from typing import Any, Dict, List, Optional
-from config import setup_views_logger, EXCEL_FILE, USER_SETTINGS, REPORTS_DIR
-from src.file_readers import load_transactions_from_excel
-from src.utils import (get_currency_rates, get_greeting, get_stock_prices, load_user_settings,
-                       filter_transactions_by_date, filter_successful_transaction, convert_transactions_to_rub)
-from dotenv import load_dotenv
 import json
 import os
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+
 import pandas as pd
+from dotenv import load_dotenv
+
+from config import EXCEL_FILE, REPORTS_DIR, USER_SETTINGS, setup_views_logger
+from src.file_readers import load_transactions_from_excel
+from src.utils import (
+    convert_transactions_to_rub,
+    filter_successful_transaction,
+    filter_transactions_by_date,
+    get_currency_rates,
+    get_greeting,
+    get_stock_prices,
+    load_user_settings,
+)
+
 logger = setup_views_logger()
 
 
@@ -29,7 +39,7 @@ def get_cards_summary(df: pd.DataFrame) -> List[Dict[str, Any]]:
         return []
 
     # 1. Фильтруем только расходы, отрицательные суммы
-    expenses_df =  df[df['Сумма операции'] < 0].copy()
+    expenses_df = df[df["Сумма операции"] < 0].copy()
 
     if expenses_df.empty:
         return []
@@ -37,23 +47,26 @@ def get_cards_summary(df: pd.DataFrame) -> List[Dict[str, Any]]:
     # 2. Группируем по номеру карты
     result = []
 
-    for card_number, group in expenses_df.groupby('Номер карты'):
-        total_spent = abs(group['Сумма операции'].sum())
+    for card_number, group in expenses_df.groupby("Номер карты"):
+        total_spent = abs(group["Сумма операции"].sum())
         cashback = total_spent * 0.01  # 1% кэшбэк
 
         card_str = str(card_number)
         last_digits = card_str[-4:]
 
-        result.append({
-            'last_digits': last_digits,
-            'total_spent': round(total_spent, 2),
-            'cashback': round(cashback, 2),
-        })
+        result.append(
+            {
+                "last_digits": last_digits,
+                "total_spent": round(total_spent, 2),
+                "cashback": round(cashback, 2),
+            }
+        )
 
     # 3. Сортируем по тратам
-    result.sort(key=lambda x: x['total_spent'], reverse=True)
+    result.sort(key=lambda x: x["total_spent"], reverse=True)
 
     return result
+
 
 def get_top_transactions(df: pd.DataFrame, limit: int = 5) -> List[Dict[str, Any]]:
     """
@@ -66,35 +79,37 @@ def get_top_transactions(df: pd.DataFrame, limit: int = 5) -> List[Dict[str, Any
 
     # 1. Сортируем
     df_sorted = df.copy()
-    df_sorted['abs_amount'] = df_sorted['Сумма операции'].abs()
-    df_sorted = df_sorted.sort_values('abs_amount', ascending=False)
+    df_sorted["abs_amount"] = df_sorted["Сумма операции"].abs()
+    df_sorted = df_sorted.sort_values("abs_amount", ascending=False)
 
     # 2. Берём топ и преобразуем в словари
-    top_records = df_sorted.head(limit).to_dict('records')
+    top_records = df_sorted.head(limit).to_dict("records")
 
     # 3. Форматируем
     result = []
     for record in top_records:
         # Дата
-        date_val = record['Дата операции']
+        date_val = record["Дата операции"]
         if isinstance(date_val, pd.Timestamp):
-            date_str = date_val.strftime('%d.%m.%Y')
+            date_str = date_val.strftime("%d.%m.%Y")
         else:
             date_str = str(date_val) if pd.notna(date_val) else "Нет даты"
 
         # Сумма
-        amount_val = record['Сумма операции']
+        amount_val = record["Сумма операции"]
         if isinstance(amount_val, (int, float)):
             amount = round(float(amount_val), 2)
         else:
             amount = 0.0
 
-        result.append({
-            'date': date_str,
-            'amount': amount,
-            'category': str(record.get('Категория', 'Не указано')),
-            'description': str(record.get('Описание', 'Без описания'))[:50]
-        })
+        result.append(
+            {
+                "date": date_str,
+                "amount": amount,
+                "category": str(record.get("Категория", "Не указано")),
+                "description": str(record.get("Описание", "Без описания"))[:50],
+            }
+        )
 
     return result
 
@@ -131,13 +146,7 @@ def generate_financial_report(date_string: str) -> Dict[str, Any]:
         logger.info(f"Период анализа: {month_start.date()} - {target_date.date()}")
     except Exception as e:
         logger.error(f"Ошибка парсинга даты: {e}")
-        return {
-            "greeting": greeting,
-            "cards": [],
-            "top_transactions": [],
-            "currency_rates": [],
-            "stock_prices": []
-        }
+        return {"greeting": greeting, "cards": [], "top_transactions": [], "currency_rates": [], "stock_prices": []}
 
     # 3. Загружаем данные
     try:
@@ -153,7 +162,7 @@ def generate_financial_report(date_string: str) -> Dict[str, Any]:
 
     except Exception as e:
         logger.error(f"Ошибка обработки транзакций: {e}")
-        df_successful = pd.DataFrame() # Пустой DataFrame
+        df_successful = pd.DataFrame()  # Пустой DataFrame
 
     # 4. Загружаем настройки пользователя
     settings = load_user_settings(USER_SETTINGS)
@@ -161,9 +170,7 @@ def generate_financial_report(date_string: str) -> Dict[str, Any]:
     # 5. Получаем курсы валют
     try:
         currency_rates = get_currency_rates(
-            apikey=API_KEY_Freecurrencyapi,
-            base_currency="RUB",
-            currencies=settings.get("user_currencies", [])
+            apikey=API_KEY_Freecurrencyapi, base_currency="RUB", currencies=settings.get("user_currencies", [])
         )
         if currency_rates is None:
             currency_rates = {}
@@ -187,10 +194,7 @@ def generate_financial_report(date_string: str) -> Dict[str, Any]:
         stock_prices = []
 
     # 7. Конвертируем в рубли
-    df_successful = convert_transactions_to_rub(
-        df_successful,
-        currency_rates
-    )
+    df_successful = convert_transactions_to_rub(df_successful, currency_rates)
     logger.info("Суммы операций приведены к RUB")
 
     # 8. Считаем статистику
@@ -211,6 +215,7 @@ def generate_financial_report(date_string: str) -> Dict[str, Any]:
     logger.info(f"Отчет готов! Карт: {len(cards_info)}, Топ операций: {len(top_transactions)}")
     return report
 
+
 def save_report(report: dict, filename: str = "report.json", reports_dir=REPORTS_DIR):
     """Сохраняет отчет в JSON файл в указанной папке"""
     try:
@@ -223,6 +228,7 @@ def save_report(report: dict, filename: str = "report.json", reports_dir=REPORTS
     except Exception as e:
         logger.error(f"Ошибка сохранения: {e}")
         return False
+
 
 ex_report = generate_financial_report("2019-10- 12:00:00")
 save_report(ex_report, "my_report.json")
