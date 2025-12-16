@@ -14,6 +14,7 @@ def sample_transactions_df():
         "Статус": ["OK", "OK", "OK"]
     })
 
+@pytest.fixture
 def sample_data_for_report():
     data = [
         {"Дата операции": datetime.now() - timedelta(days=10), "Категория": "Еда", "Сумма операции": -500},
