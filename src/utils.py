@@ -256,15 +256,19 @@ def convert_transactions_to_rub(df: pd.DataFrame, currency_rates: Dict[str, floa
     return df
 
 
-def save_report(report: dict, filename: str = "report.json", reports_dir=REPORTS_DIR):
+def save_report(report: dict, filename: str = "report.json", reports_dir: Path = None) -> bool:
     """Сохраняет отчет в JSON файл в указанной папке"""
+    if reports_dir is None:
+        reports_dir = REPORTS_DIR
+
     try:
-        reports_dir.mkdir(exist_ok=True)  # на случай, если папки нет
+        reports_dir.mkdir(parents=True, exist_ok=True)
         file_path = reports_dir / filename
         with open(file_path, "w", encoding="utf-8") as f:
             json.dump(report, f, ensure_ascii=False, indent=2)
         logger.info(f"Отчет сохранен в {file_path}")
         return True
     except Exception as e:
-        logger.error(f"Ошибка сохранения: {e}")
+        logger.error(f"Ошибка сохранения отчета: {e}")
         return False
+
