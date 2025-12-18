@@ -1,13 +1,10 @@
-import json
 import os
 from datetime import datetime
 from typing import Any, Dict, List, Optional
-
 import pandas as pd
 from dotenv import load_dotenv
 
-from config import EXCEL_FILE, REPORTS_DIR, USER_SETTINGS, setup_views_logger
-from src.file_readers import load_transactions_from_excel
+from config import USER_SETTINGS, setup_views_logger
 from src.utils import (
     convert_transactions_to_rub,
     filter_successful_transaction,
@@ -128,7 +125,7 @@ def format_stock_prices(raw_stocks: List[Dict[str, Any]]) -> List[Dict[str, Any]
     return [{"stock": stock["stock"], "price": stock["price"]} for stock in raw_stocks]
 
 
-def generate_financial_report(date_string: str) -> Dict[str, Any]:
+def generate_financial_report(df: pd.DataFrame, date_string: str) -> Dict[str, Any]:
     """
     ГЛАВНАЯ ФУНКЦИЯ - создает полный финансовый отчет.
     Принимает дату в формате "YYYY-MM-DD HH:MM:SS"
@@ -148,15 +145,12 @@ def generate_financial_report(date_string: str) -> Dict[str, Any]:
         logger.error(f"Ошибка парсинга даты: {e}")
         return {"greeting": greeting, "cards": [], "top_transactions": [], "currency_rates": [], "stock_prices": []}
 
-    # 3. Загружаем данные
+    # 3. Фильтруем загруженные транзакции
     try:
-        # Загружаем как DataFrame
-        df = load_transactions_from_excel(EXCEL_FILE)
-        logger.info(f"Загружено {len(df)} транзакций")
-
         # Фильтруем по дате
         df_filtered = filter_transactions_by_date(df, month_start, target_date)
         df_successful = filter_successful_transaction(df_filtered)
+
         logger.info(f"Транзакций за период: {len(df_filtered)}")
         logger.info(f"Успешных транзакций: {len(df_successful)}")
 
@@ -210,26 +204,6 @@ def generate_financial_report(date_string: str) -> Dict[str, Any]:
         "stock_prices": format_stock_prices(stock_prices),
     }
 
-    print(json.dumps(report, ensure_ascii=False, indent=2))
-
     logger.info(f"Отчет готов! Карт: {len(cards_info)}, Топ операций: {len(top_transactions)}")
     return report
 
-
-def save_report(report: dict, filename: str = "report.json", reports_dir=REPORTS_DIR):
-    """Сохраняет отчет в JSON файл в указанной папке"""
-    try:
-        reports_dir.mkdir(exist_ok=True)  # на случай, если папки нет
-        file_path = reports_dir / filename
-        with open(file_path, "w", encoding="utf-8") as f:
-            json.dump(report, f, ensure_ascii=False, indent=2)
-        logger.info(f"Отчет сохранен в {file_path}")
-        return True
-    except Exception as e:
-        logger.error(f"Ошибка сохранения: {e}")
-        return False
-
-
-ex_report = generate_financial_report("2019-10- 12:00:00")
-save_report(ex_report, "my_report.json")
-generate_financial_report("2019-10-10 12:00:00")

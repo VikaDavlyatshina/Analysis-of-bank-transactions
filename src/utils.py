@@ -8,7 +8,7 @@ import pandas as pd
 import requests
 from dotenv import load_dotenv
 
-from config import setup_utils_logger
+from config import setup_utils_logger, REPORTS_DIR
 
 # Создаем логгер
 logger = setup_utils_logger()
@@ -32,7 +32,7 @@ def filter_transactions_by_date(df: pd.DataFrame, start_date: datetime, end_date
     return filtered_df
 
 
-def filter_successful_transaction(df):
+def filter_successful_transaction(df: pd.DataFrame) -> pd.DataFrame:
     """Фильтрация успешных транзакций"""
 
     temp_df = df.copy()
@@ -254,3 +254,17 @@ def convert_transactions_to_rub(df: pd.DataFrame, currency_rates: Dict[str, floa
     df["Сумма операции"] = df.apply(convert_row, axis=1)
 
     return df
+
+
+def save_report(report: dict, filename: str = "report.json", reports_dir=REPORTS_DIR):
+    """Сохраняет отчет в JSON файл в указанной папке"""
+    try:
+        reports_dir.mkdir(exist_ok=True)  # на случай, если папки нет
+        file_path = reports_dir / filename
+        with open(file_path, "w", encoding="utf-8") as f:
+            json.dump(report, f, ensure_ascii=False, indent=2)
+        logger.info(f"Отчет сохранен в {file_path}")
+        return True
+    except Exception as e:
+        logger.error(f"Ошибка сохранения: {e}")
+        return False

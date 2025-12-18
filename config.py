@@ -54,7 +54,7 @@ def setup_reports_logger():
     return create_logger("reports", LOGS_DIR / "reports.log")
 
 def setup_main_logger():
-    return create_logger("views", LOGS_DIR / "main.log")
+    return create_logger("main", LOGS_DIR / "main.log")
 
 def setup_services_logger():
     return create_logger("services", LOGS_DIR / "services.log")
