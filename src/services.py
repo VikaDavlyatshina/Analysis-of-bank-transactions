@@ -2,59 +2,69 @@ import re
 from typing import Any, Dict, List
 
 from config import REPORTS_DIR, setup_services_logger
-from src.views import save_report
+from src.utils import save_report
 
 logger = setup_services_logger()
 
 
-def investment_bank(month: str, transactions: List[Dict[str, Any]], limit: int, reports_dir=REPORTS_DIR) -> float:
-    """Рассчитывает сумму для Инвесткопилки на основе округления трат"""
+def investment_bank(month: str, transactions: List[Dict[str, Any]], limit: int) -> float:
+    """
+    Рассчитывает сумму, которую можно отложить в Инвесткопилку за указанный месяц
+    """
 
     logger.info(f"Запуск Инвесткопилки: месяц={month}, лимит={limit}, транзакций={len(transactions)}")
 
-    # 1. Фильтрация транзакций по месяцу и по тратам
-    def is_target_month_and_spending(transaction: Dict[str, Any]) -> bool:
-        try:
-            date_str = transaction.get("Дата операции", "")
-            is_correct_month = date_str.startswith(month)
-            is_spending = transaction.get("Сумма операции", 0) < 0
-            return is_correct_month and is_spending
-        except (AttributeError, TypeError) as e:
-            logger.debug(f"Ошибка фильтрации транзакции: {e}")
-            return False
+    if limit not in (10, 50, 100):
+        logger.warning("Неверный лимит округления")
+        raise ValueError("limit должен быть '10', '50' или '100'")
 
-    filtered_transactions = filter(is_target_month_and_spending, transactions)
+    filtered_transactions: List[Dict[str, Any]] = []
+    for transaction in transactions:
+        date_str = transaction.get("Дата операции")
+        amount = transaction.get("Сумма операции")
 
-    # 2. Расчет суммы для копилки от одной транзакции
-    def calculate_rounding(transaction: Dict[str, Any]) -> float:
-        """Рассчитывает сумму для копилки от одной транзакции."""
-        try:
-            amount = abs(transaction["Сумма операции"])
-            rounded_amount = ((amount + limit - 1) // limit) * limit
-            investment = rounded_amount - amount
-            logger.debug(f"Транзакция: {amount:.2f} → округление: {rounded_amount:.2f}, инвестиция: {investment:.2f}")
-            return float(investment)
-        except Exception as e:
-            logger.warning(f"Ошибка расчета для транзакции: {e}")
-            return 0.0
+        # если дата - не строка
+        if not isinstance(date_str, str):
+            logger.debug("Дата операции не строка — пропуск")
+            continue
 
-    # 3. Суммируем все инвестиции и приводим к float
-    total_investment = float(sum(calculate_rounding(trans) for trans in filtered_transactions))
-    logger.info(f"ИТОГ: сумма для Инвесткопилки = {total_investment:.2f} руб")
+        # если дата не с нужным месяцем - пропускаем
+        if not date_str.startswith(month):
+            continue
 
-    # 4. Сохраняем отчет в JSON
-    report_data = {"month": month, "limit": limit, "total_investment": total_investment}
-    save_report(report_data, filename="investment_bank_report.json", reports_dir=reports_dir)
+        if not isinstance(amount, (int, float)):
+            logger.debug("Сумма операции не число — пропуск")
+            continue
 
-    return total_investment
+        # если Сумма операции больше нуля - пропускаем
+        if amount >= 0:
+            continue
+
+        filtered_transactions.append(transaction)
+
+    logger.info(f"Отфильтровано транзакций: {len(filtered_transactions)}")
+
+    def rounding_diff(value: float) -> float:
+        abs_value = abs(value)
+        rounded = ((abs_value + limit - 1) // limit) * limit
+        diff = rounded - abs_value
+        logger.debug(f"Округление: {abs_value} → {rounded}, в копилку: {diff}")
+        return diff
+
+    total = sum(rounding_diff(transaction["Сумма операции"]) for transaction in filtered_transactions)
+
+    logger.info(f"Итого в Инвесткопилку: {total:.2f} ₽")
+    return float(total)
 
 
 def simple_search(transactions: List[Dict[str, Any]], search_string: str, reports_dir=REPORTS_DIR) -> Dict[str, Any]:
     """Ищет транзакции по строке в описании и категории"""
 
-    if not search_string:
+    logger.info(f"Простой поиск: строка='{search_string}', транзакций={len(transactions)}")
+
+    if not isinstance(search_string, str) or not search_string.strip():
         return {
-            "service": "simple_search",
+            "service": "Простой поиск",
             "status": "empty",
             "search_string": "",
             "found_count": 0,
@@ -64,16 +74,19 @@ def simple_search(transactions: List[Dict[str, Any]], search_string: str, report
 
     def contains_search_text(transaction: Dict[str, Any]) -> bool:
         try:
+            if not isinstance(transaction, dict):
+                return False
             desc = transaction.get("Описание", "").lower()
             cat = transaction.get("Категория", "").lower()
             search_lower = search_string.lower()
             return search_lower in desc or search_lower in cat
-        except Exception:
+        except (AttributeError, TypeError):
+            logger.debug("Ошибка при обработке транзакции", exc_info=True)
             return False
 
     result_transactions = list(filter(contains_search_text, transactions))
     result = {
-        "service": "simple_search",
+        "service": "Простой поиск",
         "status": "success",
         "search_string": search_string,
         "found_count": len(result_transactions),
@@ -88,9 +101,11 @@ def simple_search(transactions: List[Dict[str, Any]], search_string: str, report
 def find_phone_numbers(transactions: List[Dict[str, Any]], reports_dir=REPORTS_DIR) -> Dict[str, Any]:
     """Ищет транзакции с телефонными номерами в описании"""
 
+    logger.info(f"Поиск телефонов: транзакций={len(transactions)}")
+
     if not transactions:
         return {
-            "service": "find_phone_numbers",
+            "service": "Поиск по телефонным номерам",
             "status": "empty",
             "found_count": 0,
             "transactions": [],
@@ -98,10 +113,10 @@ def find_phone_numbers(transactions: List[Dict[str, Any]], reports_dir=REPORTS_D
         }
 
     phone_pattern = re.compile(r"(?:\+7|7|8)\s?\(?\d{3}\)?[\s\-]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2}", re.IGNORECASE)
-    found_transactions = [t for t in transactions if phone_pattern.search(t.get("Описание", ""))]
+    found_transactions = [transaction for transaction in transactions if phone_pattern.search(str(transaction.get("Описание", "")))]
 
     result = {
-        "service": "find_phone_numbers",
+        "service": "Поиск по телефонным номерам",
         "status": "success",
         "found_count": len(found_transactions),
         "transactions": found_transactions,
