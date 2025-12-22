@@ -32,7 +32,7 @@ def load_transactions_from_excel(file_path: str) -> pd.DataFrame:
     df["Номер карты"] = df.get("Номер карты", "****").fillna("****")
     df["Описание"] = df.get("Описание", "Без описания").fillna("Без описания").str.strip()
     df["Категория"] = df.get("Категория", "Не указано").fillna("Не указано").str.strip()
-    df["MCC"] = df.get("MCC", "Не указано").fillna("Не указано").str.strip()
+    df["MCC"] = df["MCC"].apply(lambda x: str(x).strip() if pd.notna(x) else "Не указано")
 
 
     # 4. Преобразуем колонки в category

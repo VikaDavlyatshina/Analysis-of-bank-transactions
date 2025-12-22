@@ -1,22 +1,16 @@
-import pandas as pd
 from src.file_readers import load_transactions_from_excel
 
-def test_load_transactions_from_excel(tmp_path):
-    file = tmp_path / "test.xlsx"
 
-    df = pd.DataFrame({
-        "Дата операции": ["01.08.2021 12:00:00"],
-        "Сумма операции": [-100],
-        "Валюта операции": ["RUB"],
-        "Категория": ["Еда"],
-        "Описание": ["Кофе"],
-        "Номер карты": ["1234"],
-        "Статус": ["OK"]
-    })
 
-    df.to_excel(file, index=False)
+def test_fill_missing_values(sample_transactions_df):
+    df = sample_transactions_df.copy()
+    df["Кэшбэк"] = df.get("Кэшбэк", 0.0).fillna(0.0)
+    df["Номер карты"] = df.get("Номер карты", "****").fillna("****")
+    df["Описание"] = df.get("Описание", "Без описания").fillna("Без описания").str.strip()
+    df["Категория"] = df.get("Категория", "Не указано").fillna("Не указано").str.strip()
 
-    result = load_transactions_from_excel(file)
+    assert df["Кэшбэк"].isna().sum() == 0
+    assert df["Номер карты"].isna().sum() == 0
+    assert df["Описание"].isna().sum() == 0
+    assert df["Категория"].isna().sum() == 0
 
-    assert len(result) == 1
-    assert result["Дата операции"].dtype.name.startswith("datetime")

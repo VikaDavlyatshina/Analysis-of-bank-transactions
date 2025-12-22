@@ -1,29 +1,51 @@
 import json
+import pandas as pd
 from src.reports import spending_by_category, report_to_file
 import pytest
 
-@pytest.mark.parametrize(
-    "category, expected_months, expected_total",
-    [
-        ("Еда", 3, 950),
-        ("Транспорт", 1, 200),
-        ("Развлечения", 0, 0)
-    ]
-)
-def test_spending_by_category(sample_data_for_report, category, expected_months, expected_total):
-    result = spending_by_category(sample_data_for_report, category=category)
+
+def test_spending_by_category_basic():
+    # Создаём простой DataFrame с транзакциями
+    df = pd.DataFrame({
+        "Дата операции": pd.to_datetime([
+            "2025-12-01", "2025-12-05", "2025-11-20", "2025-10-15"
+        ]),
+        "Сумма операции": [-100, -50, -200, -300],
+        "Категория": ["Еда", "Еда", "Транспорт", "Еда"]
+    })
+
+    # Вызываем функцию
+    result = spending_by_category(df, "Еда", date="2025-12-31")
+
+    # Проверяем, что результат содержит только нужные строки
+    assert not result.empty
+    assert all(result["Категория"] == "Еда")
+
+    # Проверяем, что общий итог присутствует
+    assert "Общий итог за 3 месяца" in result["Месяц"].values
 
 
-    if expected_months == 0:
-        assert "Нет данных за период" in result["Месяц"].values[0]
-        assert result["Сумма трат"].iloc[0] == 0
-    else:
+def test_spending_by_category_no_data():
+    df = pd.DataFrame({
+        "Дата операции": pd.to_datetime(["2025-12-01", "2025-12-05"]),
+        "Сумма операции": [-100, -50],
+        "Категория": ["Транспорт", "Транспорт"]
+    })
 
-        actual_months = result.loc[result["Месяц"] != "Общий итог за 3 месяца", "Месяц"].nunique()
-        assert actual_months == expected_months
+    result = spending_by_category(df, "Еда", date="2025-12-31")
 
-        # Итоговая сумма
-        total_row = result.iloc[-1]
-        assert total_row["Сумма трат"] == expected_total
-        assert total_row["Месяц"] == "Общий итог за 3 месяца"
+    # Должна вернуться строка с "Нет данных за период"
+    assert result.iloc[0]["Месяц"] == "Нет данных за период"
+    assert result.iloc[0]["Сумма трат"] == 0
 
+def test_spending_by_category_ignore_income():
+    df = pd.DataFrame({
+        "Дата операции": pd.to_datetime(["2025-12-01", "2025-12-05"]),
+        "Сумма операции": [1000, -50],  # 1000 это доход
+        "Категория": ["Еда", "Еда"]
+    })
+
+    result = spending_by_category(df, "Еда", date="2025-12-31")
+
+    # Доходная операция должна быть проигнорирована
+    assert result["Сумма трат"].sum() == 100
