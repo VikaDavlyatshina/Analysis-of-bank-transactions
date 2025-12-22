@@ -12,12 +12,9 @@ REPORTS_DIR =  PROJECT_ROOT / "reports"
 # Создаём папку reports если её нет
 REPORTS_DIR.mkdir(exist_ok=True)
 
-TEST_REPORTS_DIR = PROJECT_ROOT / "reports_test"
-TEST_REPORTS_DIR.mkdir(exist_ok=True)
-
 # Создаём папки если их нет
 LOGS_DIR.mkdir(exist_ok=True)
-TEST_LOGS_DIR.mkdir(parents=True, exist_ok=True)
+
 
 # Пути к файлам данных
 EXCEL_FILE = DATA_DIR / "operations.xlsx"

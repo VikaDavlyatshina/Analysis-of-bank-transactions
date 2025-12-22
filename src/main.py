@@ -1,30 +1,38 @@
-import json
 from datetime import datetime
-from typing import Any, Dict, List
-
-import pandas as pd
 
 from config import EXCEL_FILE, REPORTS_DIR
 from src.file_readers import load_transactions_from_excel
 from src.reports import spending_by_category
 from src.services import find_phone_numbers, investment_bank, simple_search
-from src.utils import get_greeting, load_user_settings, save_report
+from src.utils import save_report, prepare_transactions_for_services
 from src.views import generate_financial_report
 
+def parse_user_date(date_input: str) -> str:
+    """
+    Принимает:
+    - ДД.ММ.ГГГГ
+    - ДД-ММ-ГГГГ
+    - пусто
 
-def parse_user_date(user_input: str) -> str:
+    Возвращает:
+    - YYYY-MM-DD (строка)
     """
-    Преобразует формат DD-MM-YYYY или DD.MM.YYYY
-    в 'YYYY-MM-DD 12:00:00' для генерации отчета.
-    """
-    for fmt in ("%d-%m-%Y", "%d.%m.%Y"):
+
+    if not date_input.strip():
+        return datetime.now().strftime("%Y-%m-%d")
+
+    for fmt in ("%d.%m.%Y", "%d-%m-%Y", "%d/%m/%Y"):
         try:
-            dt = datetime.strptime(user_input, fmt)
-            return dt.replace(hour=12, minute=0, second=0).strftime("%Y-%m-%d %H:%M:%S")
+            return datetime.strptime(date_input, fmt).strftime("%Y-%m-%d")
         except ValueError:
             continue
-    raise ValueError(f"Неподдерживаемый формат даты: {user_input}")
 
+    raise ValueError("Неверный формат даты. Используйте ДД.ММ.ГГГГ")
+
+
+def adapt_for_investment(date_str: str) -> str:
+    """YYYY-MM-DD → YYYY-MM"""
+    return date_str[:7]
 
 def main() -> None:
     print("Привет, добро пожаловать в приложение для анализа банковских операций")
@@ -67,19 +75,24 @@ def main() -> None:
             while True:
                 try:
                     date_input = input("Введите дату для анализа (ДД.MM.ГГГГ): ")
-                    target_date = parse_user_date(date_input)
+                    target_date_str = parse_user_date(date_input)
+                    target_date_for_report = target_date_str + " 12:00:00"
                     break
+
                 except ValueError as e:
                     print(e)
 
             try:
-                report = generate_financial_report(transactions_df, target_date)
-                report_file = REPORTS_DIR / f"financial_report_{target_date}.json"
+                report = generate_financial_report(transactions_df, target_date_for_report)
+
+                # Преобразуем дату в безопасный формат для имени файла
+                safe_date_str = target_date_for_report.replace(":", "-").replace(" ", "_")
+                report_file = REPORTS_DIR / f"financial_report_{safe_date_str}.json"
+
                 save_report(report, filename=report_file.name, reports_dir=REPORTS_DIR)
                 print(f"Отчет создан и сохранен в {report_file}")
             except Exception as e:
                 print(f"Ошибка при генерации отчета: {e}")
-
         elif user_choice == 2:
             # Сервисы
             print("1. Инвесткопилка")
@@ -95,22 +108,43 @@ def main() -> None:
             if service_choice == 4:
                 continue
 
-            transactions_list = transactions_df.to_dict('records')
+            transactions_list = prepare_transactions_for_services(transactions_df)
 
             if service_choice == 1:
-                month = input("Введите месяц для Инвесткопилки (MM-YYYY): ")
-                limit = int(input("Введите лимит округления (10, 50 или 100): "))
-                total = investment_bank(month, transactions_list, limit)
-                print(f"Сумма для Инвесткопилки: {total} руб")
+                date_input = input("Введите дату (ДД.ММ.ГГГГ) или пусто: ")
+
+                try:
+                    base_date = parse_user_date(date_input)  # YYYY-MM-DD
+                    month = adapt_for_investment(base_date)  # YYYY-MM
+                except ValueError as e:
+                    print(e)
+                    continue
+
+                limit_input = input("Введите лимит (10, 50, 100): ").strip()
+
+                try:
+                    limit = int(limit_input)
+                    if limit not in (10, 50, 100):
+                        print("Некорректный лимит, используем 10 по умолчанию")
+                        limit = 10
+                except ValueError:
+                    print("Некорректный ввод, используем 10 по умолчанию")
+                    limit = 10
+
+                transactions_list = prepare_transactions_for_services(transactions_df)
+
+                total = investment_bank(month, transactions_list, int(limit))
+                print(f"Сумма для Инвесткопилки: {total:.2f} руб.")
 
             elif service_choice == 2:
                 search_str = input("Введите строку для поиска транзакций: ")
-                result = simple_search(transactions_list, search_str)
+                result = simple_search(transactions_list, search_str, REPORTS_DIR)
                 print(f"Найдено {result['found_count']} транзакций")
 
             elif service_choice == 3:
-                result = find_phone_numbers(transactions_list)
+                result = find_phone_numbers(transactions_list, REPORTS_DIR)
                 print(f"Найдено {result['found_count']} транзакций с телефонными номерами")
+
 
         elif user_choice == 3:
             # Отчеты
@@ -125,17 +159,42 @@ def main() -> None:
             if report_choice == 2:
                 continue
 
-            category = input("Введите категорию для отчета: ")
-            date_input = input("Введите дату (ДД.MM.ГГГГ) или оставьте пустым для текущей: ")
-            if not date_input:
-                date_input = datetime.now().strftime("%d.%m.%Y")
+            # Показываем пользователю категории
+            available_categories = transactions_df["Категория"].astype(str).unique()
+            print("\nДоступные категории для анализа:")
+            for cat in available_categories[:20]:
+                print("-", cat)
 
+            while True:
+                # Ввод категории
+                category_input = input("\nВведите название категории для отчета: ").strip()
+                matches = [c for c in available_categories if c.lower() == category_input.lower()]
+                if matches:
+                    category_corrected = matches[0]
+                    break
+                else:
+                    print(f"Ошибка: категория '{category_input}' не найдена в данных. Попробуйте еще раз.")
+
+            # Ввод даты
+            date_input = input(
+                "Введите дату окончания периода (ДД.MM.ГГГГ) или оставьте пустым для текущей даты: ").strip()
             try:
-                target_date = parse_user_date(date_input)
-                result_df = spending_by_category(transactions_df, category, target_date)
-                print(result_df)
-            except Exception as e:
-                print(f"Ошибка при создании отчета: {e}")
+                target_date_str = parse_user_date(date_input)
+                end_date = datetime.strptime(target_date_str, "%Y-%m-%d")
+                print(f"Дата распознана: {end_date.strftime('%d.%m.%Y')}")
+            except ValueError as e:
+                print(f"Ошибка: {e}")
+                continue
+
+            # Генерируем отчет
+            print(f"\nАнализ трат по категории: '{category_corrected}'")
+            print(f"Период: последние 3 месяца до {end_date.strftime('%d.%m.%Y')}")
+
+            result_df = spending_by_category(transactions_df, category_corrected, target_date_str)
+            if not result_df.empty:
+                print(f"Отчет сформирован в папку {REPORTS_DIR}.")
+            else:
+                print("Нет данных для отображения")
 
         elif user_choice == 4:
             print("Выход из программы. До встречи!")

@@ -16,8 +16,8 @@ def investment_bank(month: str, transactions: List[Dict[str, Any]], limit: int) 
     logger.info(f"Запуск Инвесткопилки: месяц={month}, лимит={limit}, транзакций={len(transactions)}")
 
     if limit not in (10, 50, 100):
-        logger.warning("Неверный лимит округления")
-        raise ValueError("limit должен быть '10', '50' или '100'")
+        logger.warning(f"Неверный лимит {limit}. Допустимые значения: 10, 50, 100")
+        raise ValueError(f"Неверный лимит {limit}. Допустимые значения: 10, 50, 100")
 
     filtered_transactions: List[Dict[str, Any]] = []
     for transaction in transactions:
@@ -49,7 +49,8 @@ def investment_bank(month: str, transactions: List[Dict[str, Any]], limit: int) 
         abs_value = abs(value)
         rounded = ((abs_value + limit - 1) // limit) * limit
         diff = rounded - abs_value
-        logger.debug(f"Округление: {abs_value} → {rounded}, в копилку: {diff}")
+
+        #logger.debug(f"Округление: {abs_value} → {rounded}, в копилку: {diff}")
         return diff
 
     total = sum(rounding_diff(transaction["Сумма операции"]) for transaction in filtered_transactions)
@@ -121,25 +122,28 @@ def find_phone_numbers(transactions: List[Dict[str, Any]], reports_dir: Path) ->
 
     # Регулярное выражение для телефонов
     phone_pattern = re.compile(
-        r"(?:\+7|7|8)\s?\(?\d{3}\)?[\s\-]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2}", re.IGNORECASE
+        r"(?:\+7|7|8)[\s\-]?\d{3}[\s\-]?\d{2,3}[\s\-]?\d{2}[\s\-]?\d{2}",
+        re.IGNORECASE
     )
 
-    # Фильтруем транзакции с телефонами
-    found_transactions = [
-        t for t in transactions
-        if isinstance(t, dict) and phone_pattern.search(str(t.get("Описание", "")))
-    ]
+    found_transactions = []
+    for t in transactions:
+        if not isinstance(t, dict):
+            continue
+        desc = str(t.get("Описание", ""))
+        if phone_pattern.search(desc):
+            logger.debug(f"Найден номер в транзакции: {desc}")
+            found_transactions.append(t)
 
-    # Формируем результат
     result = {
         "service": "Поиск по телефонным номерам",
-        "status": "success",  # всегда success, даже если список пуст
+        "status": "success",
         "found_count": len(found_transactions),
         "transactions": found_transactions,
         "message": f"Найдено {len(found_transactions)} транзакций с телефонными номерами",
     }
 
-    # Сохраняем отчет JSON всегда, даже если список пуст
     save_report(result, filename="find_phone_numbers_report.json", reports_dir=reports_dir)
+    logger.info(f"Поиск завершён: найдено {len(found_transactions)} транзакций")
 
     return result

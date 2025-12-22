@@ -272,3 +272,14 @@ def save_report(report: dict, filename: str = "report.json", reports_dir: Path =
         logger.error(f"Ошибка сохранения отчета: {e}")
         return False
 
+
+def prepare_transactions_for_services(df: pd.DataFrame) -> list[dict]:
+    """Возвращает список словарей для сервисов с датами в строковом формате"""
+    df_copy = df.copy()
+
+    if "Дата операции" in df_copy.columns:
+        df_copy["Дата операции"] = df_copy["Дата операции"].dt.strftime("%Y-%m-%d %H:%M:%S")
+    if "Дата платежа" in df_copy.columns:
+        df_copy["Дата платежа"] = df_copy["Дата платежа"].dt.strftime("%Y-%m-%d")
+
+    return df_copy.to_dict(orient="records")

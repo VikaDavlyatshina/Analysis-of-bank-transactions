@@ -18,36 +18,28 @@ def report_to_file(func: Optional[Callable] = None, *, filename: Optional[str] =
     Может использоваться:
     @report_to_file
     @report_to_file("my_report.json")
-        """
+    """
 
     def decorator(inner_func: Callable):
-        @wraps(inner_func)    # Сохраняем имя и описание оригинальной функции
+        @wraps(inner_func)
         def wrapper(*args, **kwargs):
-            """
-            Обертка, которая выполняет функцию и сохраняет результат
-            """
             try:
-                # 1. Вызываем оригинальную функцию
+                # Вызываем оригинальную функцию
                 result = inner_func(*args, **kwargs)
 
-                # 2. Создаем имя файла
+                # Создаем имя файла
                 if filename is None:
-                    # Автоматическое имя: функция_дата_время.json
                     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                     file_name = f"report_{inner_func.__name__}_{timestamp}.json"
                 else:
-                    # Используем указанное имя
                     file_name = filename
 
-                # 3. Добавляем папку reports
                 file_path = REPORTS_DIR / file_name
 
-
-                # 4. Сохраняем результат
+                # Сохраняем результат
                 try:
                     if isinstance(result, pd.DataFrame):
                         data = result.to_dict(orient="records")
-
                     else:
                         data = result
 
@@ -68,7 +60,6 @@ def report_to_file(func: Optional[Callable] = None, *, filename: Optional[str] =
 
         return wrapper
 
-    # Поддержка декоратора без параметров
     if func is not None:
         return decorator(func)
 
@@ -84,86 +75,52 @@ def spending_by_category(transactions: pd.DataFrame, category: str, date: Option
     try:
         logger.info(f"Запуск анализа для категории: {category}")
 
-        # Проверка, если передан не DataFrame
         if transactions is None or not isinstance(transactions, pd.DataFrame):
             logger.error("Передан некорректный DataFrame")
             raise ValueError("Передан некорректный DataFrame")
 
-        # Проверка обязательных колонок
-        required_columns = ["Дата операции", "Категория", "Сумма операции"]
-        for col in required_columns:
-            if col not in transactions.columns:
-                logger.error(f"В DataFrame отсутствует колонка '{col}'")
-                raise KeyError(f"В DataFrame отсутствует колонка '{col}'")
+        category = category.strip()
 
-        # 1. -- Определяем период с использованием relativedelta --
         if date is None:
-            end_date = datetime.now()  # если дата не указана - берем сегодня
+            end_date = datetime.now()
         else:
-            try:
-                end_date = datetime.strptime(date, "%Y-%m-%d")
-            except ValueError:
-                logger.error(f"Дата должна быть в формате 'YYYY-MM-DD', получено: {date}")
-                raise ValueError(f"Дата должна быть в формате 'YYYY-MM-DD', получено: {date}")
+            end_date = datetime.strptime(date, "%Y-%m-%d")
 
-        start_date = end_date - relativedelta(months=3)  # последние 3 месяца
-        # Начало дня для start_date, конец дня для end_date
-        start_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
+        # Границы периода
         end_date = end_date.replace(hour=23, minute=59, second=59, microsecond=999999)
+        start_date = end_date.replace(day=1) - relativedelta(months=2)
+        start_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
 
-        logger.info(f"Период анализа: {start_date.date()} - {end_date.date()}")
-
-        # 2. -- Фильтруем данные --
-        # По дате
+        # Фильтры
         mask_date = (transactions["Дата операции"] >= start_date) & (transactions["Дата операции"] <= end_date)
-
-        # По категории
-        mask_category = transactions["Категория"] == category
-
-        # Только расходы
+        mask_category = transactions["Категория"].astype(str).str.lower() == category.lower()
         mask_expense = transactions["Сумма операции"] < 0
 
-        # Итоговый фильтр
         filtered = transactions[mask_date & mask_category & mask_expense].copy()
         logger.info(f"Количество операций после фильтрации: {len(filtered)}")
 
-        # 3. -- Проверяем пустой результат --
         if filtered.empty:
             logger.warning(f"Нет трат по категории '{category}' за период")
-            return pd.DataFrame(
-                [ {
-                    "Месяц": "Нет данных за период",
-                    "Категория": category,
-                    "Сумма трат": 0,
-                    "Количество операций": 0,
-                    "Средний чек": 0,
-                    }]
-            )
+            return pd.DataFrame([{
+                "Месяц": "Нет данных за период",
+                "Категория": category,
+                "Сумма трат": 0,
+                "Количество операций": 0,
+                "Средний чек": 0,
+            }])
 
-        # -- 4. Добавляем колонку Месяц для группировки --
         filtered["Месяц"] = filtered["Дата операции"].dt.strftime("%Y-%m")
-        months = filtered["Месяц"].unique()
-        logger.info(f"Месяцы для анализа: {', '.join(months)}")
-
-        # -- 5. Рассчитываем сумму расходов по модулю --
         filtered["Расход"] = filtered["Сумма операции"].abs()
 
-        # -- 6. Группировка по месяцу --
-        grouped = filtered.groupby("Месяц", as_index=False).agg(
-            {"Расход": ["sum", "count"]}
-        )
+        grouped = filtered.groupby("Месяц", as_index=False).agg({"Расход": ["sum", "count"]})
         grouped.columns = ["Месяц", "Сумма трат", "Количество операций"]
 
-        # -- 7. Добавляем средний чек --
         grouped["Средний чек"] = (grouped["Сумма трат"] / grouped["Количество операций"]).round(2)
         grouped["Сумма трат"] = grouped["Сумма трат"].round(2)
         grouped["Категория"] = category
-        logger.info(f"Группировка по месяцам завершена. Итоговые суммы по месяцам:\n{grouped[['Месяц', 'Сумма трат']]}")
 
-        # ---8. Сортируем по Месяц --
         grouped = grouped.sort_values("Месяц")
 
-        # -- 9. Итог за 3 месяца --
         total_spent = grouped["Сумма трат"].sum()
         total_count = grouped["Количество операций"].sum()
         total_avg = (total_spent / total_count).round(2) if total_count > 0 else 0
@@ -176,7 +133,8 @@ def spending_by_category(transactions: pd.DataFrame, category: str, date: Option
             "Средний чек": total_avg
         }])
 
-        result = pd.concat([grouped, total_row], ignore_index=True)
+        result = pd.concat([grouped, total_row], ignore_index=True, axis=0)
+        result = pd.DataFrame(result)
         return result
 
     except Exception as e:
