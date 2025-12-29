@@ -28,6 +28,10 @@ def load_transactions_from_excel(file_path: str) -> pd.DataFrame:
         df["Дата платежа"] = pd.to_datetime(df["Дата платежа"], dayfirst=True, errors="coerce")
 
     # 3. Заполняем пропуски
+
+    # Проверяем недостающие колонки, создаём при необходимости
+    df = df.reindex(columns=["Кэшбэк", "Номер карты", "Описание", "Категория", "MCC"], fill_value=None)
+
     df["Кэшбэк"] = df.get("Кэшбэк", 0.0).fillna(0.0)
     df["Номер карты"] = df.get("Номер карты", "****").fillna("****")
     df["Описание"] = df.get("Описание", "Без описания").fillna("Без описания").str.strip()
