@@ -1,6 +1,7 @@
 import os
 from datetime import datetime
 from typing import Any, Dict, List, Optional
+
 import pandas as pd
 from dotenv import load_dotenv
 
@@ -159,15 +160,22 @@ def generate_financial_report(df: pd.DataFrame, date_string: str) -> Dict[str, A
         df_successful = pd.DataFrame()  # Пустой DataFrame
 
     # 4. Загружаем настройки пользователя
-    settings = load_user_settings(USER_SETTINGS)
+    settings = load_user_settings(str(USER_SETTINGS))
 
     # 5. Получаем курсы валют
+    currency_rates: Optional[Dict[str, float]] = None
+
     try:
-        currency_rates = get_currency_rates(
-            apikey=API_KEY_Freecurrencyapi, base_currency="RUB", currencies=settings.get("user_currencies", [])
-        )
-        if currency_rates is None:
-            currency_rates = {}
+        if API_KEY_Freecurrencyapi is not None:
+            currency_rates = get_currency_rates(
+                apikey=API_KEY_Freecurrencyapi,
+                base_currency="RUB",
+                currencies=settings.get("user_currencies", [])
+            )
+        else:
+            currency_rates = None
+            logger.error("API ключ для валют отсутствует")
+
 
     except Exception as e:
         logger.error(f"Ошибка получения курсов валют: {e}")
@@ -206,4 +214,3 @@ def generate_financial_report(df: pd.DataFrame, date_string: str) -> Dict[str, A
 
     logger.info(f"Отчет готов! Карт: {len(cards_info)}, Топ операций: {len(top_transactions)}")
     return report
-

@@ -2,13 +2,13 @@ import json
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 import pandas as pd
 import requests
 from dotenv import load_dotenv
 
-from config import setup_utils_logger, REPORTS_DIR
+from config import REPORTS_DIR, setup_utils_logger
 
 # Создаем логгер
 logger = setup_utils_logger()
@@ -21,23 +21,42 @@ API_KEY_twelvedata = os.getenv("API_KEY_twelvedata")  # Получение то�
 
 
 def filter_transactions_by_date(df: pd.DataFrame, start_date: datetime, end_date: datetime) -> pd.DataFrame:
-    """Фильтрует транзакции по диапазону дат"""
+    """
+       Фильтрует транзакции по заданному диапазону дат включительно
 
-    temp_df = df.copy()  # Создаём копию
+    Параметры:
+         df:DataFrame - DataFrame, содержащий столбец 'Дата операции'
+        start_date: datetime - Начальная дата диапазона
+        end_date: datetime - Конечная дата диапазона
+    Возвращает: Отфильтрованную копию DataFrame только с транзакциями в указанном диапазоне
+    """
 
-    mask = (temp_df["Дата операции"] >= start_date) & (temp_df["Дата операции"] <= end_date)
+    temp_df = df.copy()  # Создаём копию, чтобы не повредить исходные данные
+
+    # Создаем булеву маску для фильтрации
+    # Даты транзакций должна быть больше или равны end_date(Дате начала) и меньше или равны end_date (Дате окончания)
+    mask = ((temp_df["Дата операции"] >= start_date) & (temp_df["Дата операции"] <= end_date))
     filtered_df = temp_df.loc[mask]
 
-    logger.info(f"Отфильтровано по дате: {len(filtered_df)}")
+    logger.info(f"Отфильтровано по дате: {len(filtered_df)} записей из {len(df)}")
     return filtered_df
 
 
 def filter_successful_transaction(df: pd.DataFrame) -> pd.DataFrame:
-    """Фильтрация успешных транзакций"""
+    """
+    Фильтрует транзакции, оставляя только успешные (со статусом 'OK')
+    Параметры:
+        Принимает DataFrame, содержащий столбец 'Статус'
+    Возвращает:
+        Отфильтрованную копию DataFrame только с успешными транзакциями (OK)
 
-    temp_df = df.copy()
+    """
 
+    temp_df = df.copy()   # Создаём копию, чтобы не повредить исходные данные
+
+    # Критерий фильтрации
     mask = temp_df["Статус"] == "OK"
+    # Применение фильтра
     successful_df = temp_df.loc[mask]
 
     return successful_df
@@ -45,13 +64,18 @@ def filter_successful_transaction(df: pd.DataFrame) -> pd.DataFrame:
 
 def get_greeting(now: Optional[datetime] = None) -> str:
     """
-    Возвращает приветствие в зависимости от текущего времени.
-    Аргумент now: datetime (если None — возьмёт текущее время).
+   Генерирует текстовое приветствие в зависимости от времени суток.
+
+   Параметр:
+         Now: datetime|None - Принимает Дату со временем. Если Дата со временем не указана - возьмёт текущее время
     """
+
     try:
         if now is None:
             now = datetime.now()
         hour = now.hour
+
+        # Определяем приветствие по времени суток
         if 5 <= hour < 12:
             return "Доброе утро"
         if 12 <= hour < 17:
@@ -59,17 +83,28 @@ def get_greeting(now: Optional[datetime] = None) -> str:
         if 17 <= hour < 22:
             return "Добрый вечер"
         return "Доброй ночи"
-    except Exception:
-        logger.exception("Ошибка при формировании приветствия")
+
+    except Exception as e:
+        if isinstance(e, (AttributeError, TypeError)):
+            logger.error(f"Некорректный объект времени: {e}")
+        elif isinstance(e, ValueError):
+            logger.error(f"Некорректное значение времени: {e}")
+        else:
+            # Неожиданные ошибки логируем полностью
+            logger.exception(f"Неожиданная ошибка при формировании приветствия: {e}")
+
         return "Добрый день"
 
-
 def get_currency_rates(
-    apikey: str, base_currency: str = "RUB", currencies: List[str] = None
-) -> Dict[str, float] | None:
-    """Получает актуальные курсы валют от Freecurrencyapi.com."""
+    apikey: str, base_currency: str = "RUB", currencies: Optional[List[str]] = None
+) -> Optional[Dict[str, float]]:
+    """
+    Получает актуальные курсы валют от Freecurrencyapi.com.
 
-    # Проверка API ключа
+    Функция делает запрос к API и возвращает курсы валют, инвертированные
+    для отображения стоимости 1 единицы иностранной валюты в рублях."""
+
+    # Проверка наличия API ключа
     if not apikey:
         logger.error("API ключ для Freecurrencyapi отсутствует!")
         return None
@@ -79,21 +114,25 @@ def get_currency_rates(
     params = {"apikey": apikey, "base_currency": base_currency}
 
     # Добавляем валюты только если они указаны
+    # API ожидает строку с валютами через запятую: "USD, EUR, GBP"
     if currencies:
         params["currencies"] = ",".join(currencies)  # Преобразуем список в строку
 
     try:
-        # Используем Freecurrencyapi
+        #  # Используем Freecurrencyapi с таймаутом 10 секунд для избежания зависаний
         response = requests.get(url, params=params, timeout=10)
 
         response.raise_for_status()  # Проверяет HTTP ошибки
         data = response.json()
 
-        # Извлекаем курсы из ответа
+        #  Извлекаем курсы из ответа
+        # API возвращает данные в формате {"data": {"USD": 0.011, "EUR": 0.010}}
         rates = data.get("data", {})
         logger.info(f"Получены сырые курсы: {rates}")
 
         # Инвертируем курсы для отображения стоимости 1 единицы иностранной валюты в рублях
+        # API возвращает: 1 RUB = 0.011 USD (1 рубль = 0.011 доллара)
+        # Нам нужно: 1 USD = X RUB (1 доллар = X рублей)
         inverted_rates = {}
         for currency, rate in rates.items():
             if rate > 0:  # защита от деления на ноль
@@ -106,25 +145,44 @@ def get_currency_rates(
         return inverted_rates
 
     except requests.exceptions.HTTPError as e:
-        logger.exception(f" Ошибка HTTP: {e}")
+        logger.exception(f"Ошибка HTTP при запросе курсов валют: {e}")
         return None
 
     except requests.exceptions.RequestException as e:
-        logger.exception(f" Ошибка при запросе к API: {e}")
+        # Сетевые ошибки: таймаут, проблемы с соединением и т.д.
+        logger.exception(f" Ошибка сети при запросе к API валют: {e}")
         return None
 
     except ZeroDivisionError:
-        logger.exception(" Ошибка: деление на ноль при инверсии курсов")
+        logger.exception("Критическая ошибка: деление на ноль при инверсии курсов")
+        return None
+
+    except (KeyError, ValueError, TypeError) as e:
+        # Ошибки парсинга JSON или неожиданная структура ответа
+        logger.exception(f"Ошибка обработки ответа API: {e}")
         return None
 
 
 def get_stock_prices(stocks: List[str]) -> List[Dict[str, Any]]:
     """
-    Получает цены акций через Twelve Data API
+    Получает актуальные цены акций через Twelve Data API.
+
+    Особенность: функция использует систему fallback (запасных значений) для
+    обеспечения работы даже при сбоях API. Если API недоступно или возвращает
+    ошибку, используются заранее заданные резервные цены
+
+    Параметры:
+        stocks: List[str] - Список тикеров акций
+
+    Возвращает: List[Dict[str, Any]] - Список словарей с ценами акций
     """
     # Проверка API ключа
     if not API_KEY_twelvedata:
         logger.error("API ключ для Twelve Data отсутствует!")
+        return []
+
+    if not stocks:  # Если список акций пустой
+        logger.warning("Получен пустой список акций")
         return []
 
     logger.info(f"Начало запроса цен для {len(stocks)} акций")
@@ -132,21 +190,28 @@ def get_stock_prices(stocks: List[str]) -> List[Dict[str, Any]]:
 
     # Запасные цены для популярных акций
     fallback_prices = {
-        "AAPL": 150.0,  # Apple
-        "GOOGL": 130.0,  # Google
-        "MSFT": 300.0,  # Microsoft
-        "AMZN": 120.0,  # Amazon
-        "TSLA": 200.0,  # Tesla
-        "META": 250.0,  # Meta (Facebook)
-        "NVDA": 400.0,  # NVIDIA
-        "NFLX": 500.0,  # Netflix
+        "AAPL": 270.0,  # Apple
+        "GOOGL": 142.0,  # Google
+        "MSFT": 470.0,  # Microsoft
+        "AMZN": 225.0,  # Amazon
+        "TSLA": 245.0,  # Tesla
+        "META": 355.0,  # Meta
+        "NVDA": 188.0,  # NVIDIA
+        "NFLX": 615.0,  # Netflix
+        "SBER": 280.0,  # Сбербанк
+        "GAZP": 120.0,  # Газпром
     }
 
     for symbol in stocks:
+        if not symbol or not isinstance(symbol, str):
+            continue  # Пропускаем некорректные значения
+
+        symbol_upper = symbol.strip().upper()  # Приводим к верхнему регистру
+
         try:
             # Запрос к API
             url = "https://api.twelvedata.com/price"
-            params = {"symbol": symbol, "apikey": API_KEY_twelvedata}
+            params = {"symbol": symbol_upper, "apikey": API_KEY_twelvedata}
 
             response = requests.get(url, params=params, timeout=10)
             response.raise_for_status()  # Проверяет HTTP ошибки
@@ -155,33 +220,41 @@ def get_stock_prices(stocks: List[str]) -> List[Dict[str, Any]]:
             # Проверяем что цена есть в ответе
             if "price" in data and data["price"]:
                 price = float(data["price"])
-                results.append({"stock": symbol, "price": round(price, 2), "source": "twelvedata"})
-
-                logger.info(f"Цена {symbol}: ${price:.2f} (реальные данные)")
+                results.append({
+                    "stock": symbol_upper,
+                    "price": round(price, 2)
+                })
+                logger.info(f"Цена {symbol_upper}: ${price:.2f} (реальные данные)")
 
             else:
                 # Если нет цены в ответе - используем заглушку
-                fallback_price = fallback_prices.get(symbol, 100.0)
-                results.append({"stock": symbol, "price": fallback_price, "source": "fallback_no_data"})
-                logger.warning(f"Цена {symbol}: ${fallback_price:.2f} (заглушка - нет данных в API)")
+                fallback_price = fallback_prices.get(symbol_upper, 100.0)
+                results.append({
+                    "stock": symbol_upper,
+                    "price": fallback_price
+                })
+                logger.warning(f"Цена {symbol_upper}: ${fallback_price:.2f} (заглушка - нет данных в API)")
 
         except requests.exceptions.HTTPError:
-            # Ошибка HTTP
-            fallback_price = fallback_prices.get(symbol, 100.0)
-            results.append({"stock": symbol, "price": fallback_price, "source": "fallback_http_error"})
-            logger.warning(f"Цена {symbol}: ${fallback_price:.2f} (заглушка - ошибка HTTP)")
+            # Ошибка HTTP (404, 429, 500 и т.д.)
+            fallback_price = fallback_prices.get(symbol_upper, 100.0)
+            results.append({
+                "stock": symbol_upper,
+                "price": fallback_price
+            })
+            logger.warning(f"Цена {symbol_upper}: ${fallback_price:.2f} (заглушка - ошибка HTTP)")
 
         except (requests.exceptions.RequestException, Exception):
             # Другие ошибки(сеть, таймаут и т.д)
-            fallback_price = fallback_prices.get(symbol, 100.0)
-            results.append({"stock": symbol, "price": fallback_price, "source": "fallback_error"})
-            logger.warning(f"Цена {symbol}: ${fallback_price:.2f} (заглушка - ошибка подключения)")
+            fallback_price = fallback_prices.get(symbol_upper, 100.0)
+            results.append({
+                "stock": symbol_upper,
+                "price": fallback_price
+            })
+            logger.warning(f"Цена {symbol_upper}: ${fallback_price:.2f} (заглушка - ошибка подключения)")
 
-    # Статистика
-    real_data_count = sum(1 for stock in results if stock["source"] == "twelvedata")
-    fallback_count = len(results) - real_data_count
-
-    logger.info(f"Итог: {real_data_count}/{len(stocks)} реальных данных, {fallback_count} заглушек")
+    # Статистика - считаем сколько реальных данных получили
+    logger.info(f"Итог: получены цены для {len(results)} акций")
 
     return results
 
@@ -236,7 +309,7 @@ def convert_transactions_to_rub(df: pd.DataFrame, currency_rates: Dict[str, floa
 
     df = df.copy()
 
-    def convert_row(row):
+    def convert_row(row: pd.Series) -> float:
         currency = row["Валюта операции"]
         amount = row["Сумма операции"]
 
@@ -256,7 +329,7 @@ def convert_transactions_to_rub(df: pd.DataFrame, currency_rates: Dict[str, floa
     return df
 
 
-def save_report(report: dict, filename: str = "report.json", reports_dir: Path = None) -> bool:
+def save_report(report: Dict[str, Any], filename: str = "report.json", reports_dir: Optional[Path] = None) -> bool:
     """Сохраняет отчет в JSON файл в указанной папке"""
     if reports_dir is None:
         reports_dir = REPORTS_DIR
@@ -282,4 +355,4 @@ def prepare_transactions_for_services(df: pd.DataFrame) -> list[dict]:
     if "Дата платежа" in df_copy.columns:
         df_copy["Дата платежа"] = df_copy["Дата платежа"].dt.strftime("%Y-%m-%d")
 
-    return df_copy.to_dict(orient="records")
+    return cast(List[Dict[str, Any]], df_copy.to_dict(orient="records"))

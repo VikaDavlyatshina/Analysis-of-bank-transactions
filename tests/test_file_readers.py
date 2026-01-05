@@ -1,75 +1,112 @@
-from src.file_readers import load_transactions_from_excel
+from unittest.mock import patch, MagicMock
+from typing import Dict, Any, List
+from pathlib import Path
+
 import pandas as pd
-from unittest.mock import patch, Mock
+import pytest
+
+from src.file_readers import load_transactions_from_excel
 
 
-def test_load_transactions_basic(sample_transactions_df):
-    """
-    Проверяем, что функция работает с нормальным DataFrame,
-    преобразования выполняются, NaN заменены
-    """
-    with (patch("src.file_readers.pd.read_excel", return_value=sample_transactions_df), \
-          patch("src.file_readers.logger") as mock_logger):
+# 1. Тест успешного чтения и преобразования дат
+def test_load_transactions_date(temp_excel_file: Any) -> None:
+    """Тестирует корректное чтение и преобразование дат из Excel файла."""
+    with patch("src.file_readers.logger") as mock_logger:
+        # Подготавливаем данные
+        raw_data: Dict[str, List[Any]] = {
+            "Дата операции": ["01.01.2026 12:00:00", "invalid_date"],
+            "Дата платежа": ["02.01.2026", None],
+            "Валюта операции": ["RUB", "USD"],
+        }
 
-          df = load_transactions_from_excel("fake.xlsx")
+        path: Path = temp_excel_file(raw_data)   # Создаём временный файл
+        df: pd.DataFrame = load_transactions_from_excel(str(path))
 
-    # Проверка результатов
-    # 1. Пропуски заполнены
-    assert df["Кэшбэк"].isna().sum() == 0
-    assert df["Номер карты"].isna().sum() == 0
-    assert df["Описание"].isna().sum() == 0
-    assert df["Категория"].isna().sum() == 0
+        # Проверяем распознавание корректной даты (Дата имеет тип datetime)
+        assert pd.api.types.is_datetime64_any_dtype(df["Дата операции"])
+        assert df["Дата операции"].iloc[0].year == 2026
+        # Проверяем, что некорректная дата стала NaT
+        assert pd.isna(df["Дата операции"].iloc[1])
 
-    # 2. Проверяем strip()
-    assert all(df["Описание"] == df["Описание"].str.strip())
-    assert all(df["Категория"] == df["Категория"].str.strip())
-
-    # 3. Проверяем dtype категорий
-    for col in ["Категория", "Статус", "Валюта операции", "Валюта платежа", "MCC"]:
-        if col in df.columns:
-            assert str(df[col].dtype) == "category"
-
-        # 4. Проверяем, что logger был вызван
-    mock_logger.info.assert_any_call(
-        f"Загружено строк: {len(sample_transactions_df)}, колонок: {len(sample_transactions_df.columns)}")
-    mock_logger.info.assert_any_call(f"Обработка завершена. Колонок: {len(df.columns)}")
+        assert mock_logger.info.called
+        assert mock_logger.warning.called
 
 
-def test_load_transactions_logs_warning_for_bad_dates():
-    raw_df = pd.DataFrame({
-        "Дата операции": ["bad_date", "01.01.2024 10:10"],
-        "MCC": [1234, 5678],
-    })
+# 2. Тест заполнения пропусков
+def test_fill_missing_values_and_strip(temp_excel_file: Any) -> None:
+    """Тестирует заполнение пропущенных значений и удаление пробелов."""
+    with patch("src.file_readers.logger") as mock_logger:
+        # Подготавливаем данные
+        raw_data: pd.DataFrame = pd.DataFrame(
+            {
+                "Дата операции": ["01.01.2024 10:10", "02.01.2024 12:00"],
+                "Кэшбэк": [None, 5.0],
+                "Номер карты": [None, "1234"],
+                "Описание": [" Покупка ", None],
+                "Категория": [" Еда ", None],
+                "MCC": [5411, None],
+            }
+        )
 
-    with (patch("src.file_readers.pd.read_excel", return_value=raw_df), \
-     patch("src.file_readers.logger") as mock_logger):
+        path: Path = temp_excel_file(raw_data)   # Создаём временный файл
+        df: pd.DataFrame = load_transactions_from_excel(str(path))
 
-     load_transactions_from_excel("fake.xlsx")
+        # Проверка заполнения
+        assert df["Кэшбэк"].iloc[0] == 0.0
+        assert df["Номер карты"].iloc[0] == "****"
+        assert df["Описание"].iloc[1] == "Без описания"
+        assert df["Категория"].iloc[1] == "Не указано"
+        assert df["MCC"].iloc[1] == "Не указано"
+        assert df["MCC"].iloc[0] == "5411"
 
-     # Проверяем, что логгер был warning
-     mock_logger.warning.assert_called_once()
-     assert "Не удалось распарсить" in mock_logger.warning.call_args[0][0]
+        # Проверка strip
+        assert df["Описание"].iloc[0] == "Покупка"
+        assert df["Категория"].iloc[0] == "Еда"
 
-def test_fill_missing_values_and_strip():
-    raw_df = pd.DataFrame({
-        "Дата операции": ["01.01.2024 10:10", "02.01.2024 12:00"],
-        "Кэшбэк": [None, 5.0],
-        "Номер карты": [None, "1234"],
-        "Описание": [" Покупка ", None],
-        "Категория": [" Еда ", None],
-        "MCC": [5411, None],
-    })
+        mock_logger.info.assert_any_call("Обработка колонок с датами...")
+        info_calls: List[MagicMock] = mock_logger.info.call_args_list
+        assert any("Обработка завершена" in str(call[0][0]) for call in info_calls)
 
-    with patch("src.file_readers.pd.read_excel", return_value=raw_df):
-        df = load_transactions_from_excel("fake.xlsx")
 
-    # Проверка заполнения
-    assert df["Кэшбэк"].iloc[0] == 0.0
-    assert df["Номер карты"].iloc[0] == "****"
-    assert df["Описание"].iloc[1] == "Без описания"
-    assert df["Категория"].iloc[1] == "Не указано"
-    assert df["MCC"].iloc[1] == "Не указано"
+# 3. Тест создания отсутствующих колонок
+def test_missing_columns_creation(temp_excel_file: Any) -> None:
+    """Тестирует создание отсутствующих обязательных колонок."""
+    with patch("src.file_readers.logger") as mock_logger:
+        # Создаем файл без нужных колонок
+        raw_data: Dict[str, List[str]] = {"Дата операции": ["01.01.2025"]}
 
-    # Проверка strip
-    assert df["Описание"].iloc[0] == "Покупка"
-    assert df["Категория"].iloc[0] == "Еда"
+        path: Path = temp_excel_file(raw_data)  # Создаём временный файл
+
+        df: pd.DataFrame = load_transactions_from_excel(str(path))
+
+        expected_cols: List[str] = ["Кэшбэк", "Номер карты", "Описание", "Категория", "MCC"]
+        for col in expected_cols:
+            assert col in df.columns
+            if col == "Кэшбэк":
+                assert df[col].iloc[0] == 0.0
+
+        assert mock_logger.info.called
+        assert mock_logger.warning.called
+
+
+# 4. Тест типов данных (category)
+def test_column_types(temp_excel_file: Any) -> None:
+    """Тестирует правильность типов данных в колонках."""
+    with patch("src.file_readers.logger") as mock_logger:
+        raw_data: Dict[str, List[str]] = {
+            "Дата операции": ["01.01.2025"],
+            "Статус": ["OK"],
+            "Валюта операции": ["RUB"]
+        }
+        path: Path = temp_excel_file(raw_data)
+
+        df: pd.DataFrame = load_transactions_from_excel(str(path))
+
+        assert isinstance(df["Статус"].dtype, pd.CategoricalDtype)
+        assert isinstance(df["Валюта операции"].dtype, pd.CategoricalDtype)
+
+        warning_calls: List[str] = [call[0][0] for call in mock_logger.warning.call_args_list]
+        missing_cols: List[str] = ["Кэшбэк", "Номер карты", "Описание", "Категория", "MCC"]
+        for col in missing_cols:
+            col_warnings = [msg for msg in warning_calls if col in str(msg) and "отсутствует" in str(msg)]
+            assert len(col_warnings) >= 1, f"Не найдено warning для отсутствующей колонки {col}"

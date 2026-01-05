@@ -1,7 +1,7 @@
 import json
 from datetime import datetime
 from functools import wraps
-from typing import Optional, Callable
+from typing import Callable, Optional, Any
 
 import pandas as pd
 from dateutil.relativedelta import relativedelta
@@ -12,7 +12,7 @@ from config import REPORTS_DIR, setup_reports_logger
 logger = setup_reports_logger()
 
 
-def report_to_file(func: Optional[Callable] = None, *, filename: Optional[str] = None):
+def report_to_file(func: Optional[Callable[..., Any]] = None, *, filename: Optional[str] = None) -> Callable[..., Any]:
     """
     Декоратор для сохранения результата отчёта в JSON-файл.
     Может использоваться:
@@ -20,9 +20,9 @@ def report_to_file(func: Optional[Callable] = None, *, filename: Optional[str] =
     @report_to_file("my_report.json")
     """
 
-    def decorator(inner_func: Callable):
+    def decorator(inner_func: Callable[..., Any]) -> Callable[..., Any]:
         @wraps(inner_func)
-        def wrapper(*args, **kwargs):
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
             try:
                 # Вызываем оригинальную функцию
                 result = inner_func(*args, **kwargs)
@@ -81,6 +81,9 @@ def spending_by_category(transactions: pd.DataFrame, category: str, date: Option
 
         category = category.strip()
 
+        df = transactions.copy()
+        df["Категория"] = df["Категория"].astype(str).str.strip()
+
         if date is None:
             end_date = datetime.now()
         else:
@@ -92,22 +95,26 @@ def spending_by_category(transactions: pd.DataFrame, category: str, date: Option
         start_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
 
         # Фильтры
-        mask_date = (transactions["Дата операции"] >= start_date) & (transactions["Дата операции"] <= end_date)
-        mask_category = transactions["Категория"].astype(str).str.lower() == category.lower()
-        mask_expense = transactions["Сумма операции"] < 0
+        mask_date = (df["Дата операции"] >= start_date) & (df["Дата операции"] <= end_date)
+        mask_category = df["Категория"].astype(str).str.lower() == category.lower()
+        mask_expense = df["Сумма операции"] < 0
 
-        filtered = transactions[mask_date & mask_category & mask_expense].copy()
+        filtered = df[mask_date & mask_category & mask_expense].copy()
         logger.info(f"Количество операций после фильтрации: {len(filtered)}")
 
         if filtered.empty:
             logger.warning(f"Нет трат по категории '{category}' за период")
-            return pd.DataFrame([{
-                "Месяц": "Нет данных за период",
-                "Категория": category,
-                "Сумма трат": 0,
-                "Количество операций": 0,
-                "Средний чек": 0,
-            }])
+            return pd.DataFrame(
+                [
+                    {
+                        "Месяц": "Нет данных за период",
+                        "Категория": category,
+                        "Сумма трат": 0,
+                        "Количество операций": 0,
+                        "Средний чек": 0,
+                    }
+                ]
+            )
 
         filtered["Месяц"] = filtered["Дата операции"].dt.strftime("%Y-%m")
         filtered["Расход"] = filtered["Сумма операции"].abs()
@@ -125,13 +132,17 @@ def spending_by_category(transactions: pd.DataFrame, category: str, date: Option
         total_count = grouped["Количество операций"].sum()
         total_avg = (total_spent / total_count).round(2) if total_count > 0 else 0
 
-        total_row = pd.DataFrame([{
-            "Месяц": "Общий итог за 3 месяца",
-            "Категория": category,
-            "Сумма трат": total_spent,
-            "Количество операций": total_count,
-            "Средний чек": total_avg
-        }])
+        total_row = pd.DataFrame(
+            [
+                {
+                    "Месяц": "Общий итог за 3 месяца",
+                    "Категория": category,
+                    "Сумма трат": total_spent,
+                    "Количество операций": total_count,
+                    "Средний чек": total_avg,
+                }
+            ]
+        )
 
         result = pd.concat([grouped, total_row], ignore_index=True, axis=0)
         result = pd.DataFrame(result)
@@ -139,10 +150,14 @@ def spending_by_category(transactions: pd.DataFrame, category: str, date: Option
 
     except Exception as e:
         logger.error(f"Ошибка анализа категории '{category}': {e}")
-        return pd.DataFrame([{
-            "Месяц": f"Ошибка: {str(e)[:50]}...",
-            "Категория": category,
-            "Сумма трат": 0,
-            "Количество операций": 0,
-            "Средний чек": 0,
-        }])
+        return pd.DataFrame(
+            [
+                {
+                    "Месяц": f"Ошибка: {str(e)[:50]}...",
+                    "Категория": category,
+                    "Сумма трат": 0,
+                    "Количество операций": 0,
+                    "Средний чек": 0,
+                }
+            ]
+        )

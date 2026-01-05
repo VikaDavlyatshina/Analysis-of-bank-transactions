@@ -17,15 +17,11 @@ def load_transactions_from_excel(file_path: str) -> pd.DataFrame:
     logger.info(f"Колонки в исходном файле: {list(df.columns)}")
     logger.info(f"Типы данных колонок:\n{df.dtypes}")
 
-
     # 2. Преобразуем даты
     logger.info("Обработка колонок с датами...")
 
     # Дата операции с временем
-    df["Дата операции"] = pd.to_datetime(
-        df["Дата операции"], dayfirst=True, errors="coerce"
-    )
-
+    df["Дата операции"] = pd.to_datetime(df["Дата операции"], dayfirst=True, errors="coerce")
 
     failed_dates = df["Дата операции"].isna().sum()
     if failed_dates > 0:
@@ -49,7 +45,7 @@ def load_transactions_from_excel(file_path: str) -> pd.DataFrame:
         df["Кэшбэк"] = df["Кэшбэк"].fillna(0.0)
 
     if "Номер карты" in df.columns:
-        df["Номер карты"]= df["Номер карты"].fillna("****")
+        df["Номер карты"] = df["Номер карты"].fillna("****")
 
     if "Описание" in df.columns:
         df["Описание"] = df["Описание"].fillna("Без описания").str.strip()
@@ -59,14 +55,12 @@ def load_transactions_from_excel(file_path: str) -> pd.DataFrame:
 
     # Обработка MCC
     if "MCC" in df.columns:
-        # MCC может быть числом, преобразуем в строку
-        if df["MCC"].dtype in ['float64', 'int64']:
-            df["MCC"] = df["MCC"].astype(str).str.strip()
-        df["MCC"] = df["MCC"].apply(
-            lambda x: str(x).strip() if pd.notna(x) else "Не указано"
-        )
-
-
+        # Заполняем пропуски
+        df["MCC"] = df["MCC"].fillna("Не указано")
+        # Преобразуем в строку, чистим и убираем .0
+        df["MCC"] = df["MCC"].astype(str).str.strip()
+        # Простая замена: если оканчивается на ".0" и состоит из цифр и точки
+        df["MCC"] = df["MCC"].apply(lambda x: x[:-2] if x.endswith(".0") and x.replace(".", "").isdigit() else x)
     # 4. Преобразуем колонки в category
     for col in ["Категория", "Статус", "Валюта операции", "Валюта платежа", "MCC"]:
         if col in df.columns:
@@ -77,6 +71,5 @@ def load_transactions_from_excel(file_path: str) -> pd.DataFrame:
                 logger.warning(f"Не удалось преобразовать {col} в category: {e}")
 
     logger.info(f"Обработка завершена. Колонок: {len(df.columns)}")
-
 
     return df
