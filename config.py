@@ -60,4 +60,3 @@ def setup_main_logger() -> logging.Logger:
 
 def setup_services_logger() -> logging.Logger:
     return create_logger("services", LOGS_DIR / "services.log")
-

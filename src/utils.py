@@ -2,13 +2,13 @@ import json
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, Dict, List, Optional
 
 import pandas as pd
 import requests
 from dotenv import load_dotenv
 
-from config import REPORTS_DIR, setup_utils_logger
+from config import setup_utils_logger
 
 # Создаем логгер
 logger = setup_utils_logger()
@@ -293,7 +293,6 @@ def load_user_settings(file_name: str) -> Dict[str, Any]:
         return default_settings
 
 
-
 def convert_transactions_to_rub(df: pd.DataFrame, currency_rates: Dict[str, float]) -> pd.DataFrame:
     """Конвертирует все суммы операций в рубли"""
 
@@ -323,6 +322,7 @@ def convert_transactions_to_rub(df: pd.DataFrame, currency_rates: Dict[str, floa
 
     return df
 
+
 def save_json_directly(data: dict, file_path: Path) -> bool:
     """Прямое сохранение JSON файла (альтернатива save_report)."""
     try:
@@ -332,7 +332,7 @@ def save_json_directly(data: dict, file_path: Path) -> bool:
         logger.info(f" Файл сохранен: {file_path}")
         return True
     except Exception as e:
-        logger.error(f"❌ Ошибка сохранения файла {file_path}: {e}")
+        logger.error(f"Ошибка сохранения файла {file_path}: {e}")
         return False
 
 
@@ -343,17 +343,13 @@ def prepare_transactions_for_services(df: pd.DataFrame) -> list[dict]:
     if "Дата операции" in df_copy.columns:
         # Безопасное преобразование datetime в строку
         df_copy["Дата операции"] = df_copy["Дата операции"].apply(
-            lambda x: x.strftime("%Y-%m-%d %H:%M:%S")
-            if isinstance(x, (datetime, pd.Timestamp))
-            else str(x)
+            lambda x: x.strftime("%Y-%m-%d %H:%M:%S") if isinstance(x, (datetime, pd.Timestamp)) else str(x)
         )
 
     if "Дата платежа" in df_copy.columns:
         # Безопасное преобразование datetime в строку
         df_copy["Дата платежа"] = df_copy["Дата платежа"].apply(
-            lambda x: x.strftime("%Y-%m-%d")
-            if isinstance(x, (datetime, pd.Timestamp))
-            else str(x)
+            lambda x: x.strftime("%Y-%m-%d") if isinstance(x, (datetime, pd.Timestamp)) else str(x)
         )
 
     return df_copy.to_dict(orient="records")

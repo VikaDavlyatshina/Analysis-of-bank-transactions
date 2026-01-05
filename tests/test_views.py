@@ -225,7 +225,7 @@ def test_generate_financial_report_basic() -> None:
 
     test_date: str = "2024-01-15 10:00:00"
 
-    # 2. Подменяем ВСЕ зависимости ОДНОВРЕМЕННО
+    # 2. Подменяем все зависимости
     with patch("src.views.get_greeting") as mock_greeting, patch(
         "src.views.load_user_settings"
     ) as mock_settings, patch("src.views.get_currency_rates") as mock_rates, patch(
@@ -237,7 +237,7 @@ def test_generate_financial_report_basic() -> None:
         mock_rates.return_value = {"USD": 90.0}
         mock_stocks.return_value = [{"stock": "AAPL", "price": 150.0}]
 
-        # 3. Вызываем функцию ВНУТРИ блока with
+        # 3. Вызываем функцию
         result: Dict[str, Any] = generate_financial_report(test_df, test_date)
 
         # 4. Проверяем структуру отчета

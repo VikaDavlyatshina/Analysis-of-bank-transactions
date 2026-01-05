@@ -1,12 +1,13 @@
 import json
 from datetime import datetime
 from functools import wraps
-from typing import Any, Callable, Optional
 from pathlib import Path
+from typing import Any, Callable, Optional
+
 import pandas as pd
 from dateutil.relativedelta import relativedelta
 
-from config import setup_reports_logger
+from config import REPORTS_DIR, setup_reports_logger
 
 # Создаём logger
 logger = setup_reports_logger()
@@ -20,8 +21,6 @@ def report_to_file(func: Optional[Callable[..., Any]] = None, *, filename: Optio
     @report_to_file(filename="my_report.json")
     """
 
-    from config import REPORTS_DIR
-
     def decorator(inner_func: Callable[..., Any]) -> Callable[..., Any]:
         @wraps(inner_func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
@@ -30,11 +29,11 @@ def report_to_file(func: Optional[Callable[..., Any]] = None, *, filename: Optio
                 result = inner_func(*args, **kwargs)
 
                 # Определяем директорию для сохранения (из kwargs или по умолчанию)
-                reports_dir = kwargs.get('reports_dir', REPORTS_DIR)
+                reports_dir = kwargs.get("reports_dir", REPORTS_DIR)
                 reports_dir = Path(reports_dir)  # Гарантируем что это Path
 
                 # Если результат пустой или функция сказала не сохранять -> не сохраняем
-                if isinstance(result, dict) and result.get('skip_save', False):
+                if isinstance(result, dict) and result.get("skip_save", False):
                     logger.debug(f"Пропускаем сохранение для {inner_func.__name__} (skip_save=True)")
                     return result
 
@@ -44,14 +43,14 @@ def report_to_file(func: Optional[Callable[..., Any]] = None, *, filename: Optio
 
                 if isinstance(result, dict):
                     # Для simple_search проверяем found_count
-                    if result.get('found_count', 0) == 0:
+                    if result.get("found_count", 0) == 0:
                         # Дополнительная проверка для find_phone_numbers
-                        if result.get('total_phones_found', 0) == 0:
+                        if result.get("total_phones_found", 0) == 0:
                             logger.info(f"Нет результатов для сохранения в {inner_func.__name__}")
                             return result
 
                     # Если есть транзакции - сохраняем
-                    if 'transactions' in result and len(result['transactions']) == 0:
+                    if "transactions" in result and len(result["transactions"]) == 0:
                         logger.info(f"Пустой список транзакций в {inner_func.__name__}")
                         return result
 
@@ -81,8 +80,8 @@ def report_to_file(func: Optional[Callable[..., Any]] = None, *, filename: Optio
                     # Добавляем информацию о файле в результат
                     if isinstance(result, dict):
                         result = result.copy()  # Создаем копию чтобы не менять оригинал
-                        result['report_file'] = str(file_path)
-                        result['report_filename'] = file_name
+                        result["report_file"] = str(file_path)
+                        result["report_filename"] = file_name
 
                 except Exception as e:
                     logger.error(f"Ошибка сохранения отчёта {file_name}: {e}")
@@ -141,7 +140,6 @@ def spending_by_category(transactions: pd.DataFrame, category: str, date: Option
             logger.warning(f"Нет операций по категории '{category}' за период")
             return pd.DataFrame()
 
-
         filtered["Месяц"] = filtered["Дата операции"].dt.strftime("%Y-%m")
         filtered["Расход"] = filtered["Сумма операции"].abs()
 
@@ -172,6 +170,7 @@ def spending_by_category(transactions: pd.DataFrame, category: str, date: Option
 
         result = pd.concat([grouped, total_row], ignore_index=True, axis=0)
         result = pd.DataFrame(result)
+
         return result
 
     except Exception as e:

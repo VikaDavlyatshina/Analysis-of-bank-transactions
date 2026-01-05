@@ -1,7 +1,8 @@
 import re
-from typing import Any, Dict, List, Optional
-from config import setup_services_logger
 from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+from config import setup_services_logger
 from src.reports import report_to_file
 
 logger = setup_services_logger()
@@ -58,9 +59,9 @@ def investment_bank(month: str, transactions: List[Dict[str, Any]], limit: int) 
 
 @report_to_file
 def simple_search(
-        transactions: List[Dict[str, Any]],
-        search_string: str,
-        reports_dir: Optional[Path] = None  # Используется декоратором @report_to_file
+    transactions: List[Dict[str, Any]],
+    search_string: str,
+    reports_dir: Optional[Path] = None,  # Используется декоратором @report_to_file
 ) -> Dict[str, Any]:
     """
     Простой поиск транзакций по строке.
@@ -103,11 +104,9 @@ def simple_search(
 
     return result
 
+
 @report_to_file(filename="find_phone_numbers_report.json")
-def find_phone_numbers(
-        transactions: List[Dict[str, Any]],
-        reports_dir: Optional[Path] = None
-) -> Dict[str, Any]:
+def find_phone_numbers(transactions: List[Dict[str, Any]], reports_dir: Optional[Path] = None) -> Dict[str, Any]:
     """
     Ищет транзакции с телефонными номерами в описании.
     Возвращает словарь с результатами.
@@ -118,10 +117,7 @@ def find_phone_numbers(
 
     logger.info(f"Поиск телефонов: всего транзакций={len(transactions)}")
 
-    phone_pattern = re.compile(
-        r'(?:\+7|7|8)[\s\-]?\(?\d{3}\)?[\s\-]?\d{2,3}[\s\-]?\d{2}[\s\-]?\d{2}',
-        re.IGNORECASE
-    )
+    phone_pattern = re.compile(r"(?:\+7|7|8)[\s\-]?\(?\d{3}\)?[\s\-]?\d{2,3}[\s\-]?\d{2}[\s\-]?\d{2}", re.IGNORECASE)
 
     found_transactions = []
     total_phones_found = 0
@@ -140,8 +136,8 @@ def find_phone_numbers(
 
             # Создаем копию транзакции с дополнительной информацией
             t_copy = t.copy()
-            t_copy['Найденные_телефоны'] = matches
-            t_copy['Количество_найденных_номеров'] = len(matches)
+            t_copy["Найденные_телефоны"] = matches
+            t_copy["Количество_найденных_номеров"] = len(matches)
 
             found_transactions.append(t_copy)
 

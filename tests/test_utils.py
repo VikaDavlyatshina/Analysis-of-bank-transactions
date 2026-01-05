@@ -16,7 +16,8 @@ from src.utils import (
     get_greeting,
     get_stock_prices,
     load_user_settings,
-    prepare_transactions_for_services)
+    prepare_transactions_for_services,
+)
 
 # ==== filter_transactions_by_date ====
 """Тесты функции filter_transactions_by_date"""
@@ -213,7 +214,7 @@ def test_prepare_transactions_for_services_without_dates() -> None:
 def test_prepare_transactions_for_services_empty() -> None:
     """Тест с пустым DataFrame"""
     df: pd.DataFrame = pd.DataFrame(columns=["Дата операции", "Сумма операции"])
-    # Укажи тип для колонки даты
+
     df["Дата операции"] = pd.to_datetime(df["Дата операции"])
 
     result: List[Dict[str, Any]] = prepare_transactions_for_services(df)
@@ -253,6 +254,17 @@ def test_load_user_settings_bad_json(tmp_path: Path) -> None:
 
 # === get_currency_rates ===
 """Тесты функции get_currency_rates"""
+
+
+def test_get_currency_rates_with_mock(mock_currency_api: Mock) -> None:
+    """Тест получения курсов валют с Mock"""
+    rates: Optional[Dict[str, float]] = get_currency_rates("FAKE_KEY")
+
+    assert rates is not None
+    assert isinstance(rates, dict)
+    # Проверяем что возвращаются курсы из фикстуры
+    assert "USD" in rates
+    assert "EUR" in rates
 
 
 @pytest.mark.parametrize(
@@ -357,7 +369,6 @@ def test_get_stock_prices_empty_price_string() -> None:
         with patch("src.utils.logger") as mock_logger:
             result = get_stock_prices(["TSLA"])
 
-    # Пустая строка = False -> попадает в else
     assert result[0]["price"] == 245.0  # fallback
     mock_logger.warning.assert_called_with("Цена TSLA: $245.00 (заглушка - нет данных в API)")
 
@@ -372,7 +383,6 @@ def test_get_stock_prices_price_is_none() -> None:
         with patch("src.utils.logger") as mock_logger:
             result = get_stock_prices(["AAPL"])
 
-    # None = False -> попадает в else
     assert result[0]["price"] == 270.0  # fallback
     mock_logger.warning.assert_called_with("Цена AAPL: $270.00 (заглушка - нет данных в API)")
 
@@ -387,7 +397,6 @@ def test_get_stock_prices_price_is_false() -> None:
         with patch("src.utils.logger") as mock_logger:
             result = get_stock_prices(["GOOGL"])
 
-    # False = False -> попадает в else
     assert result[0]["price"] == 142.0  # fallback
     mock_logger.warning.assert_called_with("Цена GOOGL: $142.00 (заглушка - нет данных в API)")
 
@@ -404,7 +413,6 @@ def test_get_stock_prices_price_is_zero() -> None:
 
     assert result[0]["price"] == 0.0
 
-    # assert_any_call проверяет что такой вызов БЫЛ (не обязательно последний)
     mock_logger.info.assert_any_call("Цена MSFT: $0.00 (реальные данные)")
 
 
@@ -448,7 +456,7 @@ def test_get_stock_prices_network_error() -> None:
 
 
 def test_get_stock_prices_general_exception() -> None:
-    """Тест общего исключения - должен попасть в except (RequestException, Exception)"""
+    """Тест общего исключения"""
     with patch("src.utils.requests.get", side_effect=ValueError("Любая ошибка")):
         with patch("src.utils.logger") as mock_logger:
             result = get_stock_prices(["AAPL"])
@@ -467,8 +475,6 @@ def test_get_stock_prices_invalid_price_format() -> None:
         with patch("src.utils.logger") as mock_logger:
             result = get_stock_prices(["AMZN"])
 
-    # float("not a number") вызовет ValueError
-    # который будет пойман в except (RequestException, Exception)
     assert result[0]["price"] == 225.0  # fallback
     mock_logger.warning.assert_called_with("Цена AMZN: $225.00 (заглушка - ошибка подключения)")
 
@@ -495,4 +501,3 @@ def test_get_stock_prices_timeout_error() -> None:
 
     assert result[0]["price"] == 280.0
     mock_logger.warning.assert_called_with("Цена SBER: $280.00 (заглушка - ошибка подключения)")
-

@@ -1,5 +1,6 @@
 from datetime import datetime
 from pathlib import Path
+
 from config import EXCEL_FILE, REPORTS_DIR, setup_main_logger
 from src.file_readers import load_transactions_from_excel
 from src.reports import spending_by_category
@@ -389,7 +390,7 @@ def main() -> None:  # pragma: no cover
                     print(f"\n📂 Доступные категории ({len(available_categories)}):")
                     print("─" * 50)
                     for i in range(0, len(available_categories), 4):
-                        row = available_categories[i: i + 4]
+                        row = available_categories[i : i + 4]
                         print("  " + "  ".join(cat.ljust(20) for cat in row))
 
                     category_input = input("\n📝 Введите название категории (или 0 для выхода): ").strip()
@@ -451,7 +452,6 @@ def main() -> None:  # pragma: no cover
                 print(f"📊 АНАЛИЗ КАТЕГОРИИ: {category_corrected}")
                 print("📅 Период: последние 3 месяца")
                 print("─" * 50)
-
 
                 result_df = spending_by_category(transactions_df, category_corrected, target_date_str)
 

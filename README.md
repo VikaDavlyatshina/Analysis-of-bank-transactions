@@ -23,7 +23,7 @@
 # Установка
 1. Клонируйте репозиторий:
 ```
-git clone https://github.com/VikaDavlyatshina/Homework.git  # !Замени
+git clone git@github.com:VikaDavlyatshina/Analysis-of-bank-transactions.git
 ```
 2. Установите зависимости с помощью Poetry:
 ```

@@ -28,6 +28,9 @@ pytest-cov = "^7.0.0"
 
 [tool.black]
 line-length = 119
+extend-exclude = '''
+.git
+'''
 
 [tool.isort]
 line_length = 119
@@ -47,18 +50,13 @@ check_untyped_defs = false
 warn_unused_ignores = true
 warn_redundant_casts = true
 
-
 warn_no_return = false
 warn_unreachable = false
 strict_equality = false
 
 ignore_missing_imports = true
 
-# Общие исключения
+# Исключаем только виртуальные окружения
 exclude = '''
-^(\.venv|venv|env|\.env)/
-^(\.mypy_cache|__pycache__)/
-^(build|dist)/
-^\.git/
-^tests/
+^(\.venv|venv|env)/
 '''

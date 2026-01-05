@@ -1,11 +1,11 @@
-from typing import List
+from typing import Any
 
 import pandas as pd
 
 from src.reports import spending_by_category
 
 
-def test_basic_functionality(create_test_dataframe) -> None:
+def test_basic_functionality(create_test_dataframe: Any, no_save: bool) -> None:
     """
     Базовый тест: одна транзакция по категории.
     """
@@ -23,7 +23,7 @@ def test_basic_functionality(create_test_dataframe) -> None:
     assert list(result.columns) == expected_columns, f"Должны быть колонки: {expected_columns}"
 
 
-def test_multiple_transactions_same_month(create_test_dataframe) -> None:
+def test_multiple_transactions_same_month(create_test_dataframe: Any, no_save: bool) -> None:
     """
     Тест нескольких транзакций в одном месяце.
 
@@ -45,7 +45,7 @@ def test_multiple_transactions_same_month(create_test_dataframe) -> None:
     assert total_row.iloc[0]["Средний чек"] == 200.0, "Средний чек: 600 / 3 = 200"
 
 
-def test_no_transactions_for_category(create_test_dataframe) -> None:
+def test_no_transactions_for_category(create_test_dataframe: Any, no_save: bool) -> None:
     """
     Тест когда нет транзакций по указанной категории.
     """
@@ -57,8 +57,7 @@ def test_no_transactions_for_category(create_test_dataframe) -> None:
     assert result.empty, "Если нет операций по категории, результат должен быть пустым"
 
 
-
-def test_empty_dataframe() -> None:
+def test_empty_dataframe(no_save: bool) -> None:
     """
     Тест с пустым DataFrame
     """
@@ -68,8 +67,7 @@ def test_empty_dataframe() -> None:
     assert result.empty, "Если нет операций по категории, результат должен быть пустым"
 
 
-
-def test_income_transactions_ignored(create_test_dataframe) -> None:
+def test_income_transactions_ignored(create_test_dataframe: Any, no_save: bool) -> None:
     """
     Тест проверки, что положительные суммы(Доходы) игнорируются
 
@@ -91,7 +89,7 @@ def test_income_transactions_ignored(create_test_dataframe) -> None:
     assert total_row.iloc[0]["Количество операций"] == 2, "Только 2 расходные операции"
 
 
-def test_case_insensitive_category_matching(create_test_dataframe) -> None:
+def test_case_insensitive_category_matching(create_test_dataframe: Any, no_save: bool) -> None:
     """
     Тест сравнения категорий в разном регистре.
 
@@ -112,7 +110,7 @@ def test_case_insensitive_category_matching(create_test_dataframe) -> None:
         assert total_row.iloc[0]["Сумма трат"] == 300.0, f"Категория '{category}' должна найти обе транзакции"
 
 
-def test_multiple_months_grouping(create_test_dataframe) -> None:
+def test_multiple_months_grouping(create_test_dataframe: Any, no_save: bool) -> None:
     """
     Тест группировки транзакций по разным месяцам.
 
@@ -143,7 +141,7 @@ def test_multiple_months_grouping(create_test_dataframe) -> None:
     assert total_row.iloc[0]["Количество операций"] == 4, "Всего 4 операции"
 
 
-def test_category_name_stripping(create_test_dataframe) -> None:
+def test_category_name_stripping(create_test_dataframe: Any, no_save: bool) -> None:
     """
     Тест, проверяющий обработку пробелов в названиях категорий.
 
@@ -170,7 +168,7 @@ def test_category_name_stripping(create_test_dataframe) -> None:
         ), f"Должны обрезаться пробелы: '{df_category}' -> '{param_category}'"
 
 
-def test_invalid_date_format(create_test_dataframe) -> None:
+def test_invalid_date_format(create_test_dataframe: Any, no_save: bool) -> None:
     """
     Тест обработки некорректного формата даты.
     """
@@ -182,7 +180,7 @@ def test_invalid_date_format(create_test_dataframe) -> None:
     assert result.empty, "Если нет операций по категории, результат должен быть пустым"
 
 
-def test_boundary_dates(create_test_dataframe) -> None:
+def test_boundary_dates(create_test_dataframe: Any, no_save: bool) -> None:
     """
     Тест на граничные даты (первое и последнее число месяца).
 
@@ -209,7 +207,7 @@ def test_boundary_dates(create_test_dataframe) -> None:
     assert total_row.iloc[0]["Количество операций"] == 3, "Должны учитываться все 3 операции"
 
 
-def test_period_calculation(create_test_dataframe) -> None:
+def test_period_calculation(create_test_dataframe: Any, no_save: bool) -> None:
     """
     Тест расчета 3-месячного периода.
 

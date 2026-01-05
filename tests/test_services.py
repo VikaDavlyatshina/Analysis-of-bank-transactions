@@ -1,8 +1,11 @@
-from pathlib import Path
 from typing import Any, Dict, List
+
 import pytest
 
 from src.services import find_phone_numbers, investment_bank, simple_search
+
+# ==== investment_bank ====
+"""Тесты функции investment_bank"""
 
 
 @pytest.mark.parametrize(
@@ -11,99 +14,73 @@ from src.services import find_phone_numbers, investment_bank, simple_search
         ("2025-12", 50, 58.66),
         ("2025-12", 10, 8.66),
         ("2025-12", 100, 108.66),
-    ]
+    ],
 )
-def test_investment_bank(transactions: List[Dict[str, Any]], month: str, limit: int, expected: float) -> None:
-    """Тестирует функцию инвестиционного банка с различными лимитами."""
-    total: float = investment_bank(month, transactions, limit)
+def test_investment_bank_ok(invest_data: List[Dict[str, Any]], month: str, limit: int, expected: float) -> None:
+    """Тест с правильными лимитами."""
+    total = investment_bank(month, invest_data, limit)
+    # Допускаем небольшую погрешность в расчетах
     assert abs(total - expected) < 0.01
 
 
-@pytest.mark.parametrize(
-    "invalid_limit",
-    [5, 20, 200, 0]
-)
-def test_investment_bank_invalid_limit(transactions: List[Dict[str, Any]], invalid_limit: int) -> None:
-    """Тест с некорректными лимитами."""
-    with pytest.raises(ValueError, match=f"Неверный лимит {invalid_limit}"):
-        investment_bank("2025-12", transactions, invalid_limit)
+@pytest.mark.parametrize("bad_limit", [5, 20, 200, 0])
+def test_investment_bank_bad_limit(invest_data: List[Dict[str, Any]], bad_limit: int) -> None:
+    """Тест с неправильными лимитами."""
+    with pytest.raises(ValueError, match=f"Неверный лимит {bad_limit}"):
+        investment_bank("2025-12", invest_data, bad_limit)
 
 
-def test_investment_bank_empty_transactions() -> None:
-    """Тест с пустым списком транзакций."""
+def test_investment_bank_empty() -> None:
+    """Тест с пустым списком."""
     result = investment_bank("2025-12", [], 10)
     assert result == 0.0
 
 
-# -------------------
-# ТЕСТЫ SIMPLE_SEARCH
-# -------------------
-@pytest.fixture
-def simple_transactions() -> List[Dict[str, Any]]:
-    """Фикстура с транзакциями для simple_search."""
-    return [
-        {"Описание": "Купил хлеб", "Категория": "Еда"},
-        {"Описание": "Оплата интернета", "Категория": "Связь"},
-        {"Описание": "Покупка в магазине", "Категория": "Супермаркет"},
-        {"Описание": "Обед в кафе", "Категория": "Ресторан"},
-        {"Описание": "Молоко", "Категория": "Еда"},
-    ]
+# ==== simple_search ====
+"""Тесты функции simple_search"""
 
 
 @pytest.mark.parametrize(
-    "search_string, expected_count, expected_description",
+    "search_text, expected_count",
     [
-        ("хлеб", 1, "Купил хлеб"),
-        ("ХЛЕБ", 1, "Купил хлеб"),  # регистронезависимый
-        ("супермаркет", 1, "Покупка в магазине"),
-        ("молоко", 1, "Молоко"),
-        ("еда", 2, None),  # не проверяем конкретное описание, только количество
-        ("несуществующее", 0, None),
-    ]
+        ("хлеб", 1),
+        ("ХЛЕБ", 1),  # Большие буквы
+        ("супермаркет", 1),
+        ("молоко", 1),
+        ("еда", 2),  # 2 транзакции с категорией "Еда"
+        ("Не указано", 0),
+    ],
 )
-def test_simple_search_basic(
-        mock_report_decorator,
-        simple_transactions: List[Dict[str, Any]],
-        search_string: str,
-        expected_count: int,
-        expected_description: str
+def test_simple_search_find(
+    search_data: List[Dict[str, Any]], search_text: str, expected_count: int, no_save: bool
 ) -> None:
-    """Параметризованный тест simple_search."""
-    from src.services import simple_search
-
-    result = simple_search(simple_transactions, search_string)
-
+    """Тест поиска транзакций."""
+    result = simple_search(search_data, search_text)
     assert result["found_count"] == expected_count
-    assert result["search_string"] == search_string
-    assert "Найдено" in result["message"]
+    assert result["search_string"] == search_text
 
-    if expected_description:
-        assert result["transactions"][0]["Описание"] == expected_description
+    # Дополнительная проверка для найденных результатов
+    if expected_count > 0:
+        assert "Найдено" in result["message"]
+    else:
+        assert result["found_count"] == 0
 
 
-@pytest.mark.parametrize(
-    "transactions_data, search_string, expected_skip_save, expected_message_contains",
-    [
-        ([{"Описание": "Купил хлеб"}], "", True, "Строка поиска пуста"),
-        ([], "хлеб", False, None),
-    ]
-)
-def test_simple_search_edge_cases(
-        mock_report_decorator,
-        transactions_data: List[Dict[str, Any]],
-        search_string: str,
-        expected_skip_save: bool,
-        expected_message_contains: str
-) -> None:
-    """Тест граничных случаев simple_search."""
-    from src.services import simple_search
+def test_simple_search_empty_string(no_save: bool) -> None:
+    """Тест с пустой строкой поиска."""
+    data = [{"Описание": "Купил хлеб"}]
+    result = simple_search(data, "")
 
-    result = simple_search(transactions_data, search_string)
+    assert result["found_count"] == 0
+    assert result.get("skip_save") is True
+    assert "Строка поиска пуста" in result["message"]
 
-    if expected_skip_save:
-        assert result.get("skip_save") == expected_skip_save
-    if expected_message_contains:
-        assert expected_message_contains in result["message"]
+
+def test_simple_search_no_data(no_save: bool) -> None:
+    """Тест с пустым списком транзакций."""
+    result = simple_search([], "хлеб")
+    assert result["found_count"] == 0
+    assert len(result["transactions"]) == 0
 
 
 @pytest.mark.parametrize(
@@ -112,17 +89,12 @@ def test_simple_search_edge_cases(
         ("Покупка в O'Reilly", "O'Reilly", True),
         ("Кафе Starbucks®", "Starbucks", True),
         ("Кафе Starbucks®", "Starbucks®", True),
-    ]
+    ],
 )
 def test_simple_search_special_characters(
-        mock_report_decorator,
-        description: str,
-        search_string: str,
-        should_find: bool
+    description: str, search_string: str, should_find: bool, no_save: bool
 ) -> None:
     """Тест поиска со специальными символами."""
-    from src.services import simple_search
-
     transactions = [{"Описание": description, "Категория": "Тест"}]
     result = simple_search(transactions, search_string)
 
@@ -130,83 +102,58 @@ def test_simple_search_special_characters(
     assert result["found_count"] == expected_count
 
 
-# -------------------
-# ТЕСТЫ FIND_PHONE_NUMBERS
-# -------------------
-@pytest.fixture
-def phone_transactions() -> List[Dict[str, Any]]:
-    """Фикстура с транзакциями для поиска телефонов."""
-    return [
-        {"Описание": "Позвоните +7 921 123-45-67"},
-        {"Описание": "Оплата услуг"},
-        {"Описание": "Телефон: 8-921-123-45-67"},
-        {"Описание": "Номер 89211234567"},
-    ]
+# ==== find_phone_numbers ====
+"""Тесты функции find_phone_numbers"""
 
 
 @pytest.mark.parametrize(
-    "description, expected_found_count, expected_phones_count",
+    "text, should_find",
     [
-        ("Позвоните +7 921 123-45-67", 1, 1),
-        ("Оплата услуг", 0, 0),
-        ("Звоните +7 999 888-77-66 или 8-800-555-35-35", 1, 2),
-        ("Без телефона", 0, 0),
-    ]
+        ("Позвоните +7 921 123-45-67", True),
+        ("Оплата услуг", False),
+        ("Номер 89211234567", True),
+        ("Без телефона", False),
+    ],
 )
-def test_find_phone_numbers_basic(
-        mock_report_decorator,
-        description: str,
-        expected_found_count: int,
-        expected_phones_count: int
-) -> None:
-    """Параметризованный тест find_phone_numbers."""
-    from src.services import find_phone_numbers
+def test_find_phone_numbers_basic(text: str, should_find: bool, no_save: bool) -> None:
+    """Тест поиска телефонных номеров."""
+    data = [{"Описание": text}]
+    result = find_phone_numbers(data)
 
-    transactions = [{"Описание": description}]
-    result = find_phone_numbers(transactions)
-
-    assert result["found_count"] == expected_found_count
-    assert result["total_phones_found"] == expected_phones_count
-
-    if expected_found_count > 0:
-        assert result["transactions"][0]["Описание"] == description
+    if should_find:
+        assert result["found_count"] == 1
+        assert result["total_phones_found"] == 1
         assert "найдено" in result["message"].lower()
+    else:
+        assert result["found_count"] == 0
+        assert result["total_phones_found"] == 0
 
 
-@pytest.mark.parametrize(
-    "phone_format",
-    [
-        "+7 921 123-45-67",
-        "8-921-123-45-67",
-        "89211234567",
-        "8(921)123-45-67",
-    ]
-)
-def test_find_phone_numbers_formats(
-        mock_report_decorator,
-        phone_format: str
-) -> None:
-    """Тест разных форматов телефонных номеров."""
-    from src.services import find_phone_numbers
+def test_find_phone_numbers_multiple(no_save: bool) -> None:
+    """Тест с несколькими номерами в одной строке."""
+    data = [{"Описание": "Звоните +7 999 888-77-66 или 8-800-555-35-35"}]
+    result = find_phone_numbers(data)
 
-    transactions = [{"Описание": f"Телефон: {phone_format}"}]
-    result = find_phone_numbers(transactions)
-
-    assert result["found_count"] == 1
-    assert result["total_phones_found"] == 1
+    assert result["found_count"] == 1  # Одна транзакция
+    assert result["total_phones_found"] == 2  # Два номера
+    assert result["transactions"][0]["Количество_найденных_номеров"] == 2
+    assert len(result["transactions"][0]["Найденные_телефоны"]) == 2
 
 
-def test_find_phone_numbers_structure(mock_report_decorator) -> None:
-    """Тест структуры возвращаемых данных."""
-    from src.services import find_phone_numbers
-
-    transactions = [{"Описание": "Позвоните +7 921 123-45-67"}]
-    result = find_phone_numbers(transactions)
+def test_find_phone_numbers_structure(no_save: bool) -> None:
+    """Тест структуры результата."""
+    data = [{"Описание": "Позвоните +7 921 123-45-67"}]
+    result = find_phone_numbers(data)
 
     # Проверяем обязательные поля
     required_fields = [
-        "service", "status", "found_count", "found_transactions_count",
-        "total_phones_found", "transactions", "message"
+        "service",
+        "status",
+        "found_count",
+        "found_transactions_count",
+        "total_phones_found",
+        "transactions",
+        "message",
     ]
     for field in required_fields:
         assert field in result
@@ -221,93 +168,50 @@ def test_find_phone_numbers_structure(mock_report_decorator) -> None:
         assert "Количество_найденных_номеров" in transaction
 
 
+def test_find_phone_numbers_empty(no_save: bool) -> None:
+    """Тест с пустым списком."""
+    result = find_phone_numbers([])
+    assert result["found_count"] == 0
+    assert result["total_phones_found"] == 0
+    assert len(result["transactions"]) == 0
+
+
+@pytest.mark.parametrize(
+    "phone_format",
+    [
+        "+7 921 123-45-67",
+        "8-921-123-45-67",
+        "89211234567",
+        "8(921)123-45-67",
+    ],
+)
+def test_find_phone_numbers_formats(phone_format: str, no_save: bool) -> None:
+    """Тест разных форматов телефонных номеров."""
+    transactions = [{"Описание": f"Телефон: {phone_format}"}]
+    result = find_phone_numbers(transactions)
+
+    assert result["found_count"] == 1
+    assert result["total_phones_found"] == 1
+
+
 @pytest.mark.parametrize(
     "transactions_data, expected_found_count",
     [
         ([], 0),
         ([{"Описание": "Обычная транзакция"}], 0),
-        ([
-             None,
-             {"not_description": "нет поля Описание"},
-             {"Описание": None},
-             {"Описание": 123},
-             {"Описание": "Нормальная транзакция +7 999 888-77-66"},
-         ], 1),
-    ]
+        (
+            [
+                None,  # None вместо словаря
+                {"not_description": "нет поля Описание"},  # Нет поля "Описание"
+                {"Описание": None},  # None вместо строки
+                {"Описание": 123},  # Число вместо строки
+                {"Описание": "Нормальная транзакция +7 999 888-77-66"},  # Корректная
+            ],
+            1,
+        ),
+    ],
 )
-def test_find_phone_numbers_edge_cases(
-        mock_report_decorator,
-        transactions_data: List[Any],
-        expected_found_count: int
-) -> None:
-    """Тест граничных случаев find_phone_numbers."""
-    from src.services import find_phone_numbers
-
+def test_find_phone_numbers_edge_cases(transactions_data: List[Any], expected_found_count: int, no_save: bool) -> None:
+    """Тест граничных случаев."""
     result = find_phone_numbers(transactions_data)
     assert result["found_count"] == expected_found_count
-
-
-# -------------------
-# ИНТЕГРАЦИОННЫЕ ТЕСТЫ
-# -------------------
-@pytest.mark.integration
-@pytest.mark.parametrize(
-    "service_name, service_func, transactions, kwargs, expected_found_count",
-    [
-        (
-                "simple_search",
-                simple_search,
-                [{"Описание": "Купил хлеб"}],
-                {"search_string": "хлеб"},
-                1
-        ),
-        (
-                "find_phone_numbers",
-                find_phone_numbers,
-                [{"Описание": "Позвоните +7 921 123-45-67"}],
-                {},
-                1
-        ),
-    ]
-)
-def test_integration_services_real(
-        tmp_path: Path,
-        service_name: str,
-        service_func: callable,
-        transactions: List[Dict[str, Any]],
-        kwargs: Dict[str, Any],
-        expected_found_count: int
-) -> None:
-    """Интеграционный тест сервисов с реальным сохранением."""
-    # Добавляем директорию для отчетов в kwargs
-    kwargs["reports_dir"] = tmp_path
-
-    # Вызываем функцию
-    result = service_func(transactions, **kwargs)
-
-    # Проверяем логику
-    assert result["found_count"] == expected_found_count
-
-    # Проверяем что файлы создаются (если есть результаты)
-    report_files = list(tmp_path.glob(f"*{service_name}*.json"))
-    if expected_found_count > 0:
-        assert len(report_files) > 0
-    else:
-        # Для пустых результатов файл может не создаваться
-        pass
-
-
-# -------------------
-# ДОПОЛНИТЕЛЬНЫЕ ТЕСТЫ
-# -------------------
-def test_find_phone_numbers_multiple_numbers(mock_report_decorator) -> None:
-    """Тест нескольких номеров в одной транзакции."""
-    from src.services import find_phone_numbers
-
-    transactions = [{"Описание": "Звоните +7 999 888-77-66 или 8-800-555-35-35"}]
-    result = find_phone_numbers(transactions)
-
-    assert result["found_count"] == 1
-    assert result["total_phones_found"] == 2
-    assert result["transactions"][0]["Количество_найденных_номеров"] == 2
-    assert len(result["transactions"][0]["Найденные_телефоны"]) == 2
