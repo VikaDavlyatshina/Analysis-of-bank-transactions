@@ -61,15 +61,3 @@ def setup_main_logger() -> logging.Logger:
 def setup_services_logger() -> logging.Logger:
     return create_logger("services", LOGS_DIR / "services.log")
 
-
-# ---------- Логгеры для тестов ----------
-def setup_test_file_readers_logger() -> logging.Logger:
-    return create_logger("test_file_readers", TEST_LOGS_DIR / "test_file_readers.log")
-
-
-def setup_test_utils_logger() -> logging.Logger:
-    return create_logger("test_utils", TEST_LOGS_DIR / "test_utils.log")
-
-
-def setup_test_views_logger() -> logging.Logger:
-    return create_logger("test_views", TEST_LOGS_DIR / "test_views.log")
