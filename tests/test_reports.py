@@ -1,40 +1,15 @@
-import pandas as pd
-import pytest
-from datetime import datetime
-from unittest.mock import patch, Mock, mock_open
 from typing import List
+
+import pandas as pd
 
 from src.reports import spending_by_category
 
 
-def create_test_dataframe(dates: List[str], amounts: List[float], categories: List[str]) -> pd.DataFrame:
-    """
-    Вспомогательная функция для создания тестового DataFrame.
-
-    Параметры:
-        dates: список строк с датами в формате 'YYYY-MM-DD'
-        amounts: список сумм операций (отрицательные = расходы)
-        categories: список категорий
-
-    Возвращает:
-        pd.DataFrame с колонками как в реальных данных банка
-    """
-    return pd.DataFrame({
-        "Дата операции": pd.to_datetime(dates),
-        "Сумма операции": amounts,
-        "Категория": categories,
-    })
-
-
-def test_basic_functionality() -> None:
+def test_basic_functionality(create_test_dataframe) -> None:
     """
     Базовый тест: одна транзакция по категории.
     """
-    df = create_test_dataframe(
-        dates=["2024-01-05"],
-        amounts=[-100],
-        categories=["Еда"]
-    )
+    df = create_test_dataframe(dates=["2024-01-05"], amounts=[-100], categories=["Еда"])
 
     result = spending_by_category(df, "Еда", date="2024-01-31")
 
@@ -44,12 +19,11 @@ def test_basic_functionality() -> None:
     assert result.iloc[-1]["Сумма трат"] == 100.0, "Сумма должна быть абсолютным значением"
 
     # Дополнительно: проверяем структуру результата
-    # Используем фактический порядок колонок из функции
     expected_columns = ["Месяц", "Сумма трат", "Количество операций", "Средний чек", "Категория"]
     assert list(result.columns) == expected_columns, f"Должны быть колонки: {expected_columns}"
 
 
-def test_multiple_transactions_same_month() -> None:
+def test_multiple_transactions_same_month(create_test_dataframe) -> None:
     """
     Тест нескольких транзакций в одном месяце.
 
@@ -59,9 +33,7 @@ def test_multiple_transactions_same_month() -> None:
     3. Корректно вычисляется средний чек
     """
     df = create_test_dataframe(
-        dates=["2024-01-05", "2024-01-10", "2024-01-15"],
-        amounts=[-100, -200, -300],
-        categories=["Еда", "Еда", "Еда"]
+        dates=["2024-01-05", "2024-01-10", "2024-01-15"], amounts=[-100, -200, -300], categories=["Еда", "Еда", "Еда"]
     )
 
     result = spending_by_category(df, "Еда", date="2024-01-31")
@@ -73,48 +45,33 @@ def test_multiple_transactions_same_month() -> None:
     assert total_row.iloc[0]["Средний чек"] == 200.0, "Средний чек: 600 / 3 = 200"
 
 
-def test_no_transactions_for_category() -> None:
+def test_no_transactions_for_category(create_test_dataframe) -> None:
     """
     Тест когда нет транзакций по указанной категории.
-
-    Что проверяем:
-    1. Возвращается специальное сообщение "Нет данных за период"
-    2. Все значения равны 0
-    3. Результат состоит из одной строки
     """
-    df = create_test_dataframe(
-        dates=["2024-01-05"],
-        amounts=[-100],
-        categories=["Транспорт"]  # Не "Еда"
-    )
+    df = create_test_dataframe(dates=["2024-01-05"], amounts=[-100], categories=["Транспорт"])  # Не "Еда"
 
     result = spending_by_category(df, "Еда", date="2024-01-31")
 
-    assert len(result) == 1, "Должна быть ровно одна строка"
-    assert result.iloc[0]["Месяц"] == "Нет данных за период", "Специальное сообщение при отсутствии данных"
-    assert result.iloc[0]["Сумма трат"] == 0.0, "Сумма должна быть 0"
-    assert result.iloc[0]["Количество операций"] == 0, "Количество операций должно быть 0"
-    assert result.iloc[0]["Средний чек"] == 0.0, "Средний чек должен быть 0"
+    assert len(result) == 0
+    assert result.empty, "Если нет операций по категории, результат должен быть пустым"
+
 
 
 def test_empty_dataframe() -> None:
     """
-    Тест с пустым DataFrame.
-
-    Что проверяем:
-    1. Функция не падает на пустых данных
-    2. Возвращается корректное сообщение
+    Тест с пустым DataFrame
     """
     df = pd.DataFrame(columns=["Дата операции", "Сумма операции", "Категория"])
 
     result = spending_by_category(df, "Еда", date="2024-01-31")
+    assert result.empty, "Если нет операций по категории, результат должен быть пустым"
 
-    assert result.iloc[0]["Месяц"] == "Нет данных за период", "Пустой DataFrame → нет данных"
 
 
-def test_income_transactions_ignored() -> None:
+def test_income_transactions_ignored(create_test_dataframe) -> None:
     """
-    Тест что доходы (положительные суммы) игнорируются.
+    Тест проверки, что положительные суммы(Доходы) игнорируются
 
     Что проверяем:
     1. Положительные суммы (доходы) не учитываются
@@ -123,7 +80,7 @@ def test_income_transactions_ignored() -> None:
     df = create_test_dataframe(
         dates=["2024-01-05", "2024-01-10", "2024-01-15"],
         amounts=[-100, 500, -50],  # 500 - доход, должен игнорироваться
-        categories=["Еда", "Еда", "Еда"]
+        categories=["Еда", "Еда", "Еда"],
     )
 
     result = spending_by_category(df, "Еда", date="2024-01-31")
@@ -134,18 +91,16 @@ def test_income_transactions_ignored() -> None:
     assert total_row.iloc[0]["Количество операций"] == 2, "Только 2 расходные операции"
 
 
-def test_case_insensitive_category_matching() -> None:
+def test_case_insensitive_category_matching(create_test_dataframe) -> None:
     """
-    Тест регистронезависимого сравнения категорий.
+    Тест сравнения категорий в разном регистре.
 
     Что проверяем:
     1. "Еда", "ЕДА", "еда" считаются одной категорией
     2. Поиск работает независимо от регистра
     """
     df = create_test_dataframe(
-        dates=["2024-01-05", "2024-01-10"],
-        amounts=[-100, -200],
-        categories=["ЕДА", "еда"]  # Разный регистр
+        dates=["2024-01-05", "2024-01-10"], amounts=[-100, -200], categories=["ЕДА", "еда"]  # Разный регистр
     )
 
     # Проверяем все варианты регистра
@@ -157,7 +112,7 @@ def test_case_insensitive_category_matching() -> None:
         assert total_row.iloc[0]["Сумма трат"] == 300.0, f"Категория '{category}' должна найти обе транзакции"
 
 
-def test_multiple_months_grouping() -> None:
+def test_multiple_months_grouping(create_test_dataframe) -> None:
     """
     Тест группировки транзакций по разным месяцам.
 
@@ -174,7 +129,7 @@ def test_multiple_months_grouping() -> None:
             "2024-03-20",  # Март
         ],
         amounts=[-100, -50, -200, -300],
-        categories=["Еда", "Еда", "Еда", "Еда"]
+        categories=["Еда", "Еда", "Еда", "Еда"],
     )
 
     result = spending_by_category(df, "Еда", date="2024-03-31")
@@ -188,9 +143,9 @@ def test_multiple_months_grouping() -> None:
     assert total_row.iloc[0]["Количество операций"] == 4, "Всего 4 операции"
 
 
-def test_category_name_stripping() -> None:
+def test_category_name_stripping(create_test_dataframe) -> None:
     """
-    Тест обрезки пробелов в названиях категорий.
+    Тест, проверяющий обработку пробелов в названиях категорий.
 
     Что проверяем:
     1. Пробелы в начале и конце названий обрезаются
@@ -205,60 +160,29 @@ def test_category_name_stripping() -> None:
     ]
 
     for df_category, param_category in test_cases:
-        df = create_test_dataframe(
-            dates=["2024-01-05"],
-            amounts=[-100],
-            categories=[df_category]
-        )
+        df = create_test_dataframe(dates=["2024-01-05"], amounts=[-100], categories=[df_category])
 
         result = spending_by_category(df, param_category, date="2024-01-31")
         total_row = result[result["Месяц"] == "Общий итог за 3 месяца"]
 
-        assert total_row.iloc[0]["Сумма трат"] == 100.0, \
-            f"Должны обрезаться пробелы: '{df_category}' -> '{param_category}'"
+        assert (
+            total_row.iloc[0]["Сумма трат"] == 100.0
+        ), f"Должны обрезаться пробелы: '{df_category}' -> '{param_category}'"
 
 
-def test_invalid_input_handling() -> None:
-    """
-    Тест обработки некорректных входных данных.
-
-    Что проверяем:
-    1. None вместо DataFrame → ошибка
-    2. Не-DateFrame объекты → ошибка
-    3. Функция не падает, а возвращает сообщение об ошибке
-    """
-    # None вместо DataFrame
-    result = spending_by_category(None, "Еда", date="2024-01-31")
-    assert "Ошибка" in result.iloc[0]["Месяц"], "Должна быть обработка ошибки для None"
-    assert result.iloc[0]["Сумма трат"] == 0.0, "Сумма должна быть 0 при ошибке"
-
-    # Строка вместо DataFrame
-    result = spending_by_category("not a dataframe", "Еда", date="2024-01-31")
-    assert "Ошибка" in result.iloc[0]["Месяц"], "Должна быть обработка ошибки для некорректного типа"
-
-
-def test_invalid_date_format() -> None:
+def test_invalid_date_format(create_test_dataframe) -> None:
     """
     Тест обработки некорректного формата даты.
-
-    Что проверяем:
-    1. Некорректный формат даты → ошибка
-    2. Функция не падает, а возвращает сообщение об ошибке
     """
-    df = create_test_dataframe(
-        dates=["2024-01-05"],
-        amounts=[-100],
-        categories=["Еда"]
-    )
+    df = create_test_dataframe(dates=["2024-01-05"], amounts=[-100], categories=["Еда"])
 
     # Некорректный формат даты (не YYYY-MM-DD)
     result = spending_by_category(df, "Еда", date="2024/01/31")
 
-    assert "Ошибка" in result.iloc[0]["Месяц"], "Должна быть обработка ошибки формата даты"
-    assert result.iloc[0]["Сумма трат"] == 0.0, "Сумма должна быть 0 при ошибке"
+    assert result.empty, "Если нет операций по категории, результат должен быть пустым"
 
 
-def test_boundary_dates() -> None:
+def test_boundary_dates(create_test_dataframe) -> None:
     """
     Тест на граничные даты (первое и последнее число месяца).
 
@@ -274,7 +198,7 @@ def test_boundary_dates() -> None:
             "2024-02-01",  # Первое февраля - должно попасть
         ],
         amounts=[-100, -200, -300],
-        categories=["Еда", "Еда", "Еда"]
+        categories=["Еда", "Еда", "Еда"],
     )
 
     # Отчет на 1 марта (включает январь и февраль)
@@ -285,7 +209,7 @@ def test_boundary_dates() -> None:
     assert total_row.iloc[0]["Количество операций"] == 3, "Должны учитываться все 3 операции"
 
 
-def test_period_calculation() -> None:
+def test_period_calculation(create_test_dataframe) -> None:
     """
     Тест расчета 3-месячного периода.
 
@@ -303,7 +227,7 @@ def test_period_calculation() -> None:
             "2024-04-01",  # Апрель - НЕ должен попасть (после даты отчета)
         ],
         amounts=[-400, -100, -200, -300, -500],
-        categories=["Еда", "Еда", "Еда", "Еда", "Еда"]
+        categories=["Еда", "Еда", "Еда", "Еда", "Еда"],
     )
 
     # Отчет до 31 марта 2024

@@ -29,7 +29,14 @@ def load_transactions_from_excel(file_path: str) -> pd.DataFrame:
 
     # Дата платежа (без времени)
     if "Дата платежа" in df.columns:
+        # Преобразуем в datetime
         df["Дата платежа"] = pd.to_datetime(df["Дата платежа"], dayfirst=True, errors="coerce")
+
+        # Заменяем все NaT на "Не указано"
+        df["Дата платежа"] = df["Дата платежа"].fillna("Не указано")
+    else:
+        logger.info("Колонка 'Дата платежа' отсутствует в данных")
+        df["Дата платежа"] = "Не указано"
 
     # 3. Заполняем пропуски
 

@@ -1,10 +1,7 @@
-from unittest.mock import patch, MagicMock
-from typing import Dict, Any, List
 from pathlib import Path
-
+from typing import Any, Dict, List
+from unittest.mock import MagicMock, patch
 import pandas as pd
-import pytest
-
 from src.file_readers import load_transactions_from_excel
 
 
@@ -19,7 +16,7 @@ def test_load_transactions_date(temp_excel_file: Any) -> None:
             "Валюта операции": ["RUB", "USD"],
         }
 
-        path: Path = temp_excel_file(raw_data)   # Создаём временный файл
+        path: Path = temp_excel_file(raw_data)  # Создаём временный файл
         df: pd.DataFrame = load_transactions_from_excel(str(path))
 
         # Проверяем распознавание корректной даты (Дата имеет тип datetime)
@@ -48,7 +45,7 @@ def test_fill_missing_values_and_strip(temp_excel_file: Any) -> None:
             }
         )
 
-        path: Path = temp_excel_file(raw_data)   # Создаём временный файл
+        path: Path = temp_excel_file(raw_data)  # Создаём временный файл
         df: pd.DataFrame = load_transactions_from_excel(str(path))
 
         # Проверка заполнения
@@ -96,7 +93,7 @@ def test_column_types(temp_excel_file: Any) -> None:
         raw_data: Dict[str, List[str]] = {
             "Дата операции": ["01.01.2025"],
             "Статус": ["OK"],
-            "Валюта операции": ["RUB"]
+            "Валюта операции": ["RUB"],
         }
         path: Path = temp_excel_file(raw_data)
 

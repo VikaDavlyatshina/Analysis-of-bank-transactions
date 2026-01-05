@@ -1,7 +1,7 @@
+from typing import Any, Dict, List
+from unittest.mock import patch
+
 import pandas as pd
-from typing import List, Dict, Any, Optional
-from unittest.mock import Mock, patch
-from datetime import datetime
 
 from src.views import (
     format_currency_rates,
@@ -43,10 +43,7 @@ def test_card_summary_empty_df() -> None:
 
 def test_card_summary_no_expenses() -> None:
     """Тест, когда в DataFrame нет расходов"""
-    df: pd.DataFrame = pd.DataFrame({
-        "Сумма операции": [100, 1400, 2000],
-        "Номер карты": ["1325", "2515", "7272"]
-    })
+    df: pd.DataFrame = pd.DataFrame({"Сумма операции": [100, 1400, 2000], "Номер карты": ["1325", "2515", "7272"]})
     result: List[Dict[str, Any]] = get_cards_summary(df)
 
     assert result == []
@@ -54,10 +51,9 @@ def test_card_summary_no_expenses() -> None:
 
 def test_get_cards_summary_mixed_card_numbers() -> None:
     """Тест со смешанными номерами карт (пустые и непустые)"""
-    df: pd.DataFrame = pd.DataFrame({
-        "Сумма операции": [-100, -200, -300, -400],
-        "Номер карты": ["1234", "", "5678", ""]
-    })
+    df: pd.DataFrame = pd.DataFrame(
+        {"Сумма операции": [-100, -200, -300, -400], "Номер карты": ["1234", "", "5678", ""]}
+    )
     result: List[Dict[str, Any]] = get_cards_summary(df)
 
     cards_dict: Dict[str, Dict[str, Any]] = {card["last_digits"]: card for card in result}
@@ -79,10 +75,7 @@ def test_get_cards_summary_card_number_conversion() -> None:
     ]
 
     for card_number, expected_last_digits in test_cases:
-        df: pd.DataFrame = pd.DataFrame({
-            "Сумма операции": [-100],
-            "Номер карты": [card_number]
-        })
+        df: pd.DataFrame = pd.DataFrame({"Сумма операции": [-100], "Номер карты": [card_number]})
         result: List[Dict[str, Any]] = get_cards_summary(df)
 
         if card_number:  # Не пустой номер
@@ -91,10 +84,7 @@ def test_get_cards_summary_card_number_conversion() -> None:
 
 def test_get_cards_summary_rounding() -> None:
     """Тест округления сумм"""
-    df: pd.DataFrame = pd.DataFrame({
-        "Сумма операции": [-123.456, -789.012],
-        "Номер карты": ["1111", "2222"]
-    })
+    df: pd.DataFrame = pd.DataFrame({"Сумма операции": [-123.456, -789.012], "Номер карты": ["1111", "2222"]})
     result: List[Dict[str, Any]] = get_cards_summary(df)
 
     cards_dict: Dict[str, Dict[str, Any]] = {card["last_digits"]: card for card in result}
@@ -139,12 +129,14 @@ def test_get_top_transactions_empty_dataframe() -> None:
 
 def test_get_top_transactions_single_transaction() -> None:
     """Тест с одной транзакцией"""
-    df: pd.DataFrame = pd.DataFrame({
-        "Дата операции": pd.to_datetime(["2024-01-15"]),
-        "Сумма операции": [-1000],
-        "Категория": ["Еда"],
-        "Описание": ["Обед"]
-    })
+    df: pd.DataFrame = pd.DataFrame(
+        {
+            "Дата операции": pd.to_datetime(["2024-01-15"]),
+            "Сумма операции": [-1000],
+            "Категория": ["Еда"],
+            "Описание": ["Обед"],
+        }
+    )
 
     result: List[Dict[str, Any]] = get_top_transactions(df)
 
@@ -190,7 +182,7 @@ def test_format_stock_prices_basic() -> None:
     """Тест с обычными акциями"""
     stocks: List[Dict[str, Any]] = [
         {"stock": "AAPL", "price": 150.0, "source": "api"},
-        {"stock": "GOOGL", "price": 130.0, "source": "fallback"}
+        {"stock": "GOOGL", "price": 130.0, "source": "fallback"},
     ]
 
     result: List[Dict[str, Any]] = format_stock_prices(stocks)
@@ -219,29 +211,29 @@ def test_format_stock_prices_empty() -> None:
 def test_generate_financial_report_basic() -> None:
     """Простой тест главной функции"""
     # 1. Подготавливаем тестовые данные
-    test_df: pd.DataFrame = pd.DataFrame({
-        "Дата операции": pd.to_datetime(["2024-01-15"]),
-        "Сумма операции": [-1000],
-        "Валюта операции": ["RUB"],
-        "Категория": ["Еда"],
-        "Описание": ["Обед"],
-        "Номер карты": ["1234"],
-        "Статус": ["OK"]
-    })
+    test_df: pd.DataFrame = pd.DataFrame(
+        {
+            "Дата операции": pd.to_datetime(["2024-01-15"]),
+            "Сумма операции": [-1000],
+            "Валюта операции": ["RUB"],
+            "Категория": ["Еда"],
+            "Описание": ["Обед"],
+            "Номер карты": ["1234"],
+            "Статус": ["OK"],
+        }
+    )
 
     test_date: str = "2024-01-15 10:00:00"
 
     # 2. Подменяем ВСЕ зависимости ОДНОВРЕМЕННО
-    with patch('src.views.get_greeting') as mock_greeting, \
-            patch('src.views.load_user_settings') as mock_settings, \
-            patch('src.views.get_currency_rates') as mock_rates, \
-            patch('src.views.get_stock_prices') as mock_stocks:
+    with patch("src.views.get_greeting") as mock_greeting, patch(
+        "src.views.load_user_settings"
+    ) as mock_settings, patch("src.views.get_currency_rates") as mock_rates, patch(
+        "src.views.get_stock_prices"
+    ) as mock_stocks:
         # Настраиваем моки
         mock_greeting.return_value = "Доброе утро"
-        mock_settings.return_value = {
-            "user_currencies": ["USD"],
-            "user_stocks": ["AAPL"]
-        }
+        mock_settings.return_value = {"user_currencies": ["USD"], "user_stocks": ["AAPL"]}
         mock_rates.return_value = {"USD": 90.0}
         mock_stocks.return_value = [{"stock": "AAPL", "price": 150.0}]
 

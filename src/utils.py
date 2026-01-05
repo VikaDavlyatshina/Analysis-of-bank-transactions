@@ -35,7 +35,7 @@ def filter_transactions_by_date(df: pd.DataFrame, start_date: datetime, end_date
 
     # Создаем булеву маску для фильтрации
     # Даты транзакций должна быть больше или равны end_date(Дате начала) и меньше или равны end_date (Дате окончания)
-    mask = ((temp_df["Дата операции"] >= start_date) & (temp_df["Дата операции"] <= end_date))
+    mask = (temp_df["Дата операции"] >= start_date) & (temp_df["Дата операции"] <= end_date)
     filtered_df = temp_df.loc[mask]
 
     logger.info(f"Отфильтровано по дате: {len(filtered_df)} записей из {len(df)}")
@@ -52,7 +52,7 @@ def filter_successful_transaction(df: pd.DataFrame) -> pd.DataFrame:
 
     """
 
-    temp_df = df.copy()   # Создаём копию, чтобы не повредить исходные данные
+    temp_df = df.copy()  # Создаём копию, чтобы не повредить исходные данные
 
     # Критерий фильтрации
     mask = temp_df["Статус"] == "OK"
@@ -64,10 +64,10 @@ def filter_successful_transaction(df: pd.DataFrame) -> pd.DataFrame:
 
 def get_greeting(now: Optional[datetime] = None) -> str:
     """
-   Генерирует текстовое приветствие в зависимости от времени суток.
+    Генерирует текстовое приветствие в зависимости от времени суток.
 
-   Параметр:
-         Now: datetime|None - Принимает Дату со временем. Если Дата со временем не указана - возьмёт текущее время
+    Параметр:
+          Now: datetime|None - Принимает Дату со временем. Если Дата со временем не указана - возьмёт текущее время
     """
 
     try:
@@ -94,6 +94,7 @@ def get_greeting(now: Optional[datetime] = None) -> str:
             logger.exception(f"Неожиданная ошибка при формировании приветствия: {e}")
 
         return "Добрый день"
+
 
 def get_currency_rates(
     apikey: str, base_currency: str = "RUB", currencies: Optional[List[str]] = None
@@ -220,37 +221,25 @@ def get_stock_prices(stocks: List[str]) -> List[Dict[str, Any]]:
             # Проверяем что цена есть в ответе
             if "price" in data and data["price"]:
                 price = float(data["price"])
-                results.append({
-                    "stock": symbol_upper,
-                    "price": round(price, 2)
-                })
+                results.append({"stock": symbol_upper, "price": round(price, 2)})
                 logger.info(f"Цена {symbol_upper}: ${price:.2f} (реальные данные)")
 
             else:
                 # Если нет цены в ответе - используем заглушку
                 fallback_price = fallback_prices.get(symbol_upper, 100.0)
-                results.append({
-                    "stock": symbol_upper,
-                    "price": fallback_price
-                })
+                results.append({"stock": symbol_upper, "price": fallback_price})
                 logger.warning(f"Цена {symbol_upper}: ${fallback_price:.2f} (заглушка - нет данных в API)")
 
         except requests.exceptions.HTTPError:
             # Ошибка HTTP (404, 429, 500 и т.д.)
             fallback_price = fallback_prices.get(symbol_upper, 100.0)
-            results.append({
-                "stock": symbol_upper,
-                "price": fallback_price
-            })
+            results.append({"stock": symbol_upper, "price": fallback_price})
             logger.warning(f"Цена {symbol_upper}: ${fallback_price:.2f} (заглушка - ошибка HTTP)")
 
         except (requests.exceptions.RequestException, Exception):
             # Другие ошибки(сеть, таймаут и т.д)
             fallback_price = fallback_prices.get(symbol_upper, 100.0)
-            results.append({
-                "stock": symbol_upper,
-                "price": fallback_price
-            })
+            results.append({"stock": symbol_upper, "price": fallback_price})
             logger.warning(f"Цена {symbol_upper}: ${fallback_price:.2f} (заглушка - ошибка подключения)")
 
     # Статистика - считаем сколько реальных данных получили
@@ -304,45 +293,46 @@ def load_user_settings(file_name: str) -> Dict[str, Any]:
         return default_settings
 
 
+
 def convert_transactions_to_rub(df: pd.DataFrame, currency_rates: Dict[str, float]) -> pd.DataFrame:
-    """Конвертирует все сумму операций в рубли"""
+    """Конвертирует все суммы операций в рубли"""
 
     df = df.copy()
 
     def convert_row(row: pd.Series) -> float:
-        currency = row["Валюта операции"]
-        amount = row["Сумма операции"]
+        currency = str(row["Валюта операции"])  # явно str
+        amount_val = row["Сумма операции"]
+
+        # явно float
+        try:
+            amount = float(amount_val)
+        except (TypeError, ValueError):
+            amount = 0.0
 
         if currency == "RUB":
             return amount
 
         rate = currency_rates.get(currency)
-
         if rate is None:
             logger.warning(f"Нет курса для валюты {currency}")
-            return amount  # или 0, или выбросить строку
+            return amount
 
         return amount * rate
 
-    df["Сумма операции"] = df.apply(convert_row, axis=1)
+    df["Сумма операции"] = df.apply(convert_row, axis=1).astype(float)
 
     return df
 
-
-def save_report(report: Dict[str, Any], filename: str = "report.json", reports_dir: Optional[Path] = None) -> bool:
-    """Сохраняет отчет в JSON файл в указанной папке"""
-    if reports_dir is None:
-        reports_dir = REPORTS_DIR
-
+def save_json_directly(data: dict, file_path: Path) -> bool:
+    """Прямое сохранение JSON файла (альтернатива save_report)."""
     try:
-        reports_dir.mkdir(parents=True, exist_ok=True)
-        file_path = reports_dir / filename
+        file_path.parent.mkdir(parents=True, exist_ok=True)
         with open(file_path, "w", encoding="utf-8") as f:
-            json.dump(report, f, ensure_ascii=False, indent=2)
-        logger.info(f"Отчет сохранен в {file_path}")
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        logger.info(f" Файл сохранен: {file_path}")
         return True
     except Exception as e:
-        logger.error(f"Ошибка сохранения отчета: {e}")
+        logger.error(f"❌ Ошибка сохранения файла {file_path}: {e}")
         return False
 
 
@@ -351,8 +341,19 @@ def prepare_transactions_for_services(df: pd.DataFrame) -> list[dict]:
     df_copy = df.copy()
 
     if "Дата операции" in df_copy.columns:
-        df_copy["Дата операции"] = df_copy["Дата операции"].dt.strftime("%Y-%m-%d %H:%M:%S")
-    if "Дата платежа" in df_copy.columns:
-        df_copy["Дата платежа"] = df_copy["Дата платежа"].dt.strftime("%Y-%m-%d")
+        # Безопасное преобразование datetime в строку
+        df_copy["Дата операции"] = df_copy["Дата операции"].apply(
+            lambda x: x.strftime("%Y-%m-%d %H:%M:%S")
+            if isinstance(x, (datetime, pd.Timestamp))
+            else str(x)
+        )
 
-    return cast(List[Dict[str, Any]], df_copy.to_dict(orient="records"))
+    if "Дата платежа" in df_copy.columns:
+        # Безопасное преобразование datetime в строку
+        df_copy["Дата платежа"] = df_copy["Дата платежа"].apply(
+            lambda x: x.strftime("%Y-%m-%d")
+            if isinstance(x, (datetime, pd.Timestamp))
+            else str(x)
+        )
+
+    return df_copy.to_dict(orient="records")

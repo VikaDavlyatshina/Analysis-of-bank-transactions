@@ -1,9 +1,8 @@
 import re
-from pathlib import Path
 from typing import Any, Dict, List, Optional
-
-from config import REPORTS_DIR, setup_services_logger
-from src.utils import save_report
+from config import setup_services_logger
+from pathlib import Path
+from src.reports import report_to_file
 
 logger = setup_services_logger()
 
@@ -49,8 +48,6 @@ def investment_bank(month: str, transactions: List[Dict[str, Any]], limit: int) 
         abs_value = abs(value)
         rounded = ((abs_value + limit - 1) // limit) * limit
         diff = rounded - abs_value
-
-        # logger.debug(f"Округление: {abs_value} → {rounded}, в копилку: {diff}")
         return diff
 
     total = sum(rounding_diff(transaction["Сумма операции"]) for transaction in filtered_transactions)
@@ -59,45 +56,41 @@ def investment_bank(month: str, transactions: List[Dict[str, Any]], limit: int) 
     return float(total)
 
 
+@report_to_file
+def simple_search(
+        transactions: List[Dict[str, Any]],
+        search_string: str,
+        reports_dir: Optional[Path] = None  # Используется декоратором @report_to_file
+) -> Dict[str, Any]:
+    """
+    Простой поиск транзакций по строке.
+    Возвращает словарь с результатами поиска.
+    """
 
+    if reports_dir:
+        logger.debug(f"Директория для сохранения отчета: {reports_dir}")
 
-def simple_search( transactions: List[Dict[str, Any]],search_string: str, reports_dir: Optional[Path] = None) -> Dict[str, Any]:
-    """Ищет транзакции по строке в описании и категории"""
-
-    # Если reports_dir не передан, используем папку по умолчанию
-    actual_reports_dir: Path = REPORTS_DIR if reports_dir is None else reports_dir
-
-    logger.info(f"Простой поиск: строка='{search_string}', всего транзакций={len(transactions)}")
-
-    # Если пустой или невалидный поисковый запрос, просто создаем пустой отчет
     if not isinstance(search_string, str) or not search_string.strip():
-        result = {
+        return {
             "service": "Простой поиск",
-            "status": "success",  # всегда success, чтобы файл создавался
+            "status": "success",
             "search_string": "",
             "found_count": 0,
             "transactions": [],
             "message": "Строка поиска пуста",
+            "skip_save": True,  # Говорим декоратору не сохранять пустой результат
         }
-        save_report(result, filename="simple_search_report.json", reports_dir=actual_reports_dir)
-        return result
 
-    # Функция проверки, содержит ли транзакция поисковый текст
+    search_lower = search_string.lower()
+
     def contains_search_text(transaction: Dict[str, Any]) -> bool:
-        try:
-            if not isinstance(transaction, dict):
-                return False
-            else:
-                desc = transaction.get("Описание", "").lower()
-                cat = transaction.get("Категория", "").lower()
-                search_lower = search_string.lower()
-                return search_lower in desc or search_lower in cat
-        except (AttributeError, TypeError):
-            logger.debug("Ошибка при обработке транзакции", exc_info=True)
+        if not isinstance(transaction, dict):
             return False
+        desc = str(transaction.get("Описание", "")).lower()
+        cat = str(transaction.get("Категория", "")).lower()
+        return search_lower in desc or search_lower in cat
 
-    # Фильтруем транзакции по поиску
-    result_transactions = list(filter(contains_search_text, transactions))
+    result_transactions: List[Dict[str, Any]] = list(filter(contains_search_text, transactions))
 
     result = {
         "service": "Простой поиск",
@@ -108,44 +101,58 @@ def simple_search( transactions: List[Dict[str, Any]],search_string: str, report
         "message": f"Найдено {len(result_transactions)} транзакций по запросу '{search_string}'",
     }
 
-    # Сохраняем JSON-отчет только если результат не пустой
-    if result["found_count"] > 0:
-        save_report(result, filename="simple_search_report.json", reports_dir=actual_reports_dir)
-    else:
-        logger.info("Результатов поиска нет — отчёт не сохраняется")
-
     return result
 
-
-def find_phone_numbers(transactions: List[Dict[str, Any]], reports_dir: Optional[Path] = None) -> Dict[str, Any]:
-    """Ищет транзакции с телефонными номерами в описании"""
-
-    # Если reports_dir не передан, используем папку по умолчанию
-    actual_reports_dir: Path = REPORTS_DIR if reports_dir is None else reports_dir
+@report_to_file(filename="find_phone_numbers_report.json")
+def find_phone_numbers(
+        transactions: List[Dict[str, Any]],
+        reports_dir: Optional[Path] = None
+) -> Dict[str, Any]:
+    """
+    Ищет транзакции с телефонными номерами в описании.
+    Возвращает словарь с результатами.
+    ВАЖНО: сохраняет обратную совместимость с main() через ключ 'found_count'
+    """
+    if reports_dir:
+        logger.debug(f"Директория для сохранения отчета телефонов: {reports_dir}")
 
     logger.info(f"Поиск телефонов: всего транзакций={len(transactions)}")
 
-    # Регулярное выражение для телефонов
-    phone_pattern = re.compile(r"(?:\+7|7|8)[\s\-]?\d{3}[\s\-]?\d{2,3}[\s\-]?\d{2}[\s\-]?\d{2}", re.IGNORECASE)
+    phone_pattern = re.compile(
+        r'(?:\+7|7|8)[\s\-]?\(?\d{3}\)?[\s\-]?\d{2,3}[\s\-]?\d{2}[\s\-]?\d{2}',
+        re.IGNORECASE
+    )
 
     found_transactions = []
+    total_phones_found = 0
+
     for t in transactions:
         if not isinstance(t, dict):
             continue
+
         desc = str(t.get("Описание", ""))
-        if phone_pattern.search(desc):
-            logger.debug(f"Найден номер в транзакции: {desc}")
-            found_transactions.append(t)
+        # Используем findall() для поиска ВСЕХ номеров
+        matches = phone_pattern.findall(desc)
+
+        if matches:
+            total_phones_found += len(matches)
+            logger.debug(f"Найдены номера: '{desc}' → {matches}")
+
+            # Создаем копию транзакции с дополнительной информацией
+            t_copy = t.copy()
+            t_copy['Найденные_телефоны'] = matches
+            t_copy['Количество_найденных_номеров'] = len(matches)
+
+            found_transactions.append(t_copy)
 
     result = {
         "service": "Поиск по телефонным номерам",
         "status": "success",
         "found_count": len(found_transactions),
+        "found_transactions_count": len(found_transactions),  # транзакций с номерами
+        "total_phones_found": total_phones_found,  # всего номеров
         "transactions": found_transactions,
-        "message": f"Найдено {len(found_transactions)} транзакций с телефонными номерами",
+        "message": f"Найдено {len(found_transactions)} транзакций с {total_phones_found} телефонными номерами",
     }
-
-    save_report(result, filename="find_phone_numbers_report.json", reports_dir=actual_reports_dir)
-    logger.info(f"Поиск завершён: найдено {len(found_transactions)} транзакций")
 
     return result
