@@ -26,6 +26,19 @@ types-python-dateutil = "^2.9.0.20251115"
 pytest = "^9.0.1"
 pytest-cov = "^7.0.0"
 
+<<<<<<< Updated upstream
+=======
+
+[[tool.poetry.source]]
+name = "tsinghua"
+url = "https://pypi.tuna.tsinghua.edu.cn/simple"
+priority = "primary"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry-core.masonry.api"
+
+>>>>>>> Stashed changes
 [tool.black]
 line-length = 119
 extend-exclude = '''
