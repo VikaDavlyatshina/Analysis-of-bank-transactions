@@ -8,11 +8,11 @@ package-mode = false
 
 [tool.poetry.dependencies]
 python = "^3.13"
-pandas = "^2.3.3"
 openpyxl = "^3.1.5"
 requests = "^2.31.0"
 pandas-stubs = "^2.3.2.250926"
 python-dotenv = "^1.2.1"
+pandas = "^3.0.5"
 
 [tool.poetry.group.lint.dependencies]
 flake8 = "^7.3.0"
@@ -26,9 +26,6 @@ types-python-dateutil = "^2.9.0.20251115"
 pytest = "^9.0.1"
 pytest-cov = "^7.0.0"
 
-<<<<<<< Updated upstream
-=======
-
 [[tool.poetry.source]]
 name = "tsinghua"
 url = "https://pypi.tuna.tsinghua.edu.cn/simple"
@@ -38,7 +35,6 @@ priority = "primary"
 requires = ["poetry-core"]
 build-backend = "poetry-core.masonry.api"
 
->>>>>>> Stashed changes
 [tool.black]
 line-length = 119
 extend-exclude = '''
@@ -58,15 +54,12 @@ python_version = "3.13"
 disallow_untyped_defs = true       # главная проверка: все функции должны иметь аннотации
 warn_return_any = true             # если функция возвращает Any, предупреждать
 strict_optional = true             # Optional/None проверяется
-
 check_untyped_defs = false
 warn_unused_ignores = true
 warn_redundant_casts = true
-
 warn_no_return = false
 warn_unreachable = false
 strict_equality = false
-
 ignore_missing_imports = true
 
 # Исключаем только виртуальные окружения
