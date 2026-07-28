@@ -37,16 +37,22 @@ def no_save() -> Iterator[None]:
             return func  # Просто возвращаем функцию без обертки
 
     # Мокаем все операции с файлами
-    with patch("src.services.report_to_file", mock_report_to_file):
-        with patch("builtins.open"):  # Блокируем открытие файлов
-            with patch("json.dump"):  # Блокируем запись JSON
-                with patch("pathlib.Path.mkdir"):  # Блокируем создание папок
-                    # Перезагружаем модуль
+    with patch("src.reports.report_to_file", mock_report_to_file):
+        with patch("builtins.open"):
+            with patch("json.dump"):
+                with patch("pathlib.Path.mkdir"):
+                    # Перезагружаем модули с декоратором @report_to_file
                     import importlib
 
-                    import src.services
+                    import src.reports
 
-                    importlib.reload(src.services)
+                    importlib.reload(src.reports)
+
+                    import src.services.search
+                    import src.services.phone_finder
+
+                    importlib.reload(src.services.search)
+                    importlib.reload(src.services.phone_finder)
                     yield
 
 
@@ -147,12 +153,18 @@ def sample_data_for_report() -> pd.DataFrame:
 @pytest.fixture
 def mock_report_decorator() -> Iterator[None]:
     """Фикстура для мока декоратора report_to_file."""
-    with patch("src.services.report_to_file", lambda func=None, **kwargs: (lambda f: f)):
+    with patch("src.reports.report_to_file", lambda func=None, **kwargs: (lambda f: f)):
         import importlib
 
-        import src.services
+        import src.reports
 
-        importlib.reload(src.services)
+        importlib.reload(src.reports)
+
+        import src.services.search
+        import src.services.phone_finder
+
+        importlib.reload(src.services.search)
+        importlib.reload(src.services.phone_finder)
         yield
 
 
