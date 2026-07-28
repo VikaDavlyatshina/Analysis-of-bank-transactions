@@ -226,10 +226,10 @@ def test_generate_financial_report_basic() -> None:
     test_date: str = "2024-01-15 10:00:00"
 
     # 2. Подменяем все зависимости
-    with patch("src.views.get_greeting") as mock_greeting, patch(
-        "src.views.load_user_settings"
-    ) as mock_settings, patch("src.views.get_currency_rates") as mock_rates, patch(
-        "src.views.get_stock_prices"
+    with patch("src.views.report.get_greeting") as mock_greeting, patch(
+        "src.views.report.load_user_settings"
+    ) as mock_settings, patch("src.views.report.get_currency_rates") as mock_rates, patch(
+        "src.views.report.get_stock_prices"
     ) as mock_stocks:
         # Настраиваем моки
         mock_greeting.return_value = "Доброе утро"
