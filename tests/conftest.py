@@ -61,7 +61,7 @@ def mock_currency_api() -> Iterator[None]:
     }
 
     # Мокаем requests.get
-    with patch("src.utils.requests.get") as mock_get:
+    with patch("src.api.currency.requests.get") as mock_get:
         # Создаем мок-ответ
         mock_response = Mock()
         mock_response.json.return_value = {"data": test_rates}
