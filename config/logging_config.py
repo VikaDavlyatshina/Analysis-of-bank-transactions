@@ -11,10 +11,12 @@ def create_logger(name: str, log_file: Path) -> logging.Logger:
     logger = logging.getLogger(name)
     logger.setLevel(logging.DEBUG)
 
+    for handler in logger.handlers[:]:
+        handler.close()
+        logger.removeHandler(handler)
+
     handler = logging.FileHandler(log_file, mode="w", encoding="utf-8")
     handler.setFormatter(logging.Formatter(LOG_FORMAT))
-
-    logger.handlers.clear()
     logger.addHandler(handler)
     return logger
 
