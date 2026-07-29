@@ -4,13 +4,13 @@ from unittest.mock import MagicMock, patch
 
 import pandas as pd
 
-from src.file_readers import load_transactions_from_excel
+from src.loaders import load_transactions_from_excel
 
 
 # 1. Тест успешного чтения и преобразования дат
 def test_load_transactions_date(temp_excel_file: Any) -> None:
     """Тестирует корректное чтение и преобразование дат из Excel файла."""
-    with patch("src.file_readers.logger") as mock_logger:
+    with patch("src.loaders.excel_loader.logger") as mock_logger:
         # Подготавливаем данные
         raw_data: Dict[str, List[Any]] = {
             "Дата операции": ["01.01.2026 12:00:00", "invalid_date"],
@@ -34,7 +34,7 @@ def test_load_transactions_date(temp_excel_file: Any) -> None:
 # 2. Тест заполнения пропусков
 def test_fill_missing_values_and_strip(temp_excel_file: Any) -> None:
     """Тестирует заполнение пропущенных значений и удаление пробелов."""
-    with patch("src.file_readers.logger") as mock_logger:
+    with patch("src.loaders.excel_loader.logger") as mock_logger:
         # Подготавливаем данные
         raw_data: pd.DataFrame = pd.DataFrame(
             {
@@ -70,7 +70,7 @@ def test_fill_missing_values_and_strip(temp_excel_file: Any) -> None:
 # 3. Тест создания отсутствующих колонок
 def test_missing_columns_creation(temp_excel_file: Any) -> None:
     """Тестирует создание отсутствующих обязательных колонок."""
-    with patch("src.file_readers.logger") as mock_logger:
+    with patch("src.loaders.excel_loader.logger") as mock_logger:
         # Создаем файл без нужных колонок
         raw_data: Dict[str, List[str]] = {"Дата операции": ["01.01.2025"]}
 
@@ -91,7 +91,7 @@ def test_missing_columns_creation(temp_excel_file: Any) -> None:
 # 4. Тест типов данных (category)
 def test_column_types(temp_excel_file: Any) -> None:
     """Тестирует правильность типов данных в колонках."""
-    with patch("src.file_readers.logger") as mock_logger:
+    with patch("src.loaders.excel_loader.logger") as mock_logger:
         raw_data: Dict[str, List[str]] = {
             "Дата операции": ["01.01.2025"],
             "Статус": ["OK"],
