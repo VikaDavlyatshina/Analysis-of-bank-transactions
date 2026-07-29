@@ -10,14 +10,29 @@ import pytest
 
 @pytest.fixture(autouse=True)
 def disable_all_logs() -> Iterator[None]:
-    """Автоматически отключает все логи во время тестов."""
-    # Отключаем логирование полностью
-    logging.disable(logging.CRITICAL)
+    """Перенаправляет логи тестов в logs/test/, не мешая основным логам."""
+    from config.settings import LOGS_DIR, TEST_LOGS_DIR
 
-    yield  # Тесты выполняются здесь
+    TEST_LOGS_DIR.mkdir(parents=True, exist_ok=True)
+    logs_path = str(LOGS_DIR.resolve())
 
-    # Включаем логирование обратно
-    logging.disable(logging.NOTSET)
+    for name in list(logging.root.manager.loggerDict):
+        logger = logging.getLogger(name)
+        for handler in logger.handlers[:]:
+            if isinstance(handler, logging.FileHandler):
+                handler_path = str(Path(handler.baseFilename).resolve().parent)
+                if handler_path == logs_path:
+                    handler.close()
+                    logger.removeHandler(handler)
+
+                    new_handler = logging.FileHandler(
+                        TEST_LOGS_DIR / f"{name}.log",
+                        mode="w",
+                        encoding="utf-8",
+                    )
+                    logger.addHandler(new_handler)
+
+    yield
 
 
 @pytest.fixture

@@ -5,6 +5,7 @@ DATA_DIR = PROJECT_ROOT / "data"
 USER_SETTINGS = PROJECT_ROOT / "config" / "user_settings.json"
 LOGS_DIR = PROJECT_ROOT / "logs"
 REPORTS_DIR = PROJECT_ROOT / "output" / "reports"
+TEST_LOGS_DIR = LOGS_DIR / "test"
 
 EXCEL_FILE = DATA_DIR / "operations.xlsx"
 
