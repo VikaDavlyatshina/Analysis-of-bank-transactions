@@ -282,7 +282,7 @@ def test_get_currency_rates_various_cases(api_response: Dict[str, Any], expected
     mock_response.json.return_value = api_response
     mock_response.raise_for_status = Mock()
 
-    with patch("src.utils.requests.get", return_value=mock_response):
+    with patch("src.api.currency.requests.get", return_value=mock_response):
         rates: Optional[Dict[str, float]] = get_currency_rates(
             "FAKE_KEY", currencies=list(api_response["data"].keys())
         )
@@ -298,14 +298,14 @@ def test_get_currency_rate_api_error() -> None:
     mock_response: Mock = Mock()
     mock_response.raise_for_status.side_effect = requests.exceptions.HTTPError("API Error")
 
-    with patch("src.utils.requests.get", return_value=mock_response):
+    with patch("src.api.currency.requests.get", return_value=mock_response):
         rates: Optional[Dict[str, float]] = get_currency_rates("FAKE_KEY")
         assert rates is None
 
 
 def test_get_currency_rate_network_error() -> None:
     """Тест сетевой ошибки"""
-    with patch("src.utils.requests.get", side_effect=requests.exceptions.RequestException("Network error")):
+    with patch("src.api.currency.requests.get", side_effect=requests.exceptions.RequestException("Network error")):
         rates: Optional[Dict[str, float]] = get_currency_rates("FAKE_KEY")
     assert rates is None
 
@@ -331,9 +331,9 @@ def test_get_stock_prices_success() -> None:
     for mock in mock_responses:
         mock.raise_for_status = Mock()
 
-    with patch("src.utils.requests.get") as mock_get:
+    with patch("src.api.stocks.requests.get") as mock_get:
         mock_get.side_effect = mock_responses
-        with patch("src.utils.logger") as mock_logger:
+        with patch("src.api.stocks.logger") as mock_logger:
             prices = get_stock_prices(stocks)
 
     assert len(prices) == 2
@@ -350,8 +350,8 @@ def test_get_stock_prices_no_price_in_response() -> None:
     mock_response.json.return_value = {}  # Нет поля price
     mock_response.raise_for_status = Mock()
 
-    with patch("src.utils.requests.get", return_value=mock_response):
-        with patch("src.utils.logger") as mock_logger:
+    with patch("src.api.stocks.requests.get", return_value=mock_response):
+        with patch("src.api.stocks.logger") as mock_logger:
             result = get_stock_prices(["AAPL"])
 
     assert result[0]["price"] == 270.0  # fallback
@@ -365,8 +365,8 @@ def test_get_stock_prices_empty_price_string() -> None:
     mock_response.json.return_value = {"price": ""}  # Пустая строка = False
     mock_response.raise_for_status = Mock()
 
-    with patch("src.utils.requests.get", return_value=mock_response):
-        with patch("src.utils.logger") as mock_logger:
+    with patch("src.api.stocks.requests.get", return_value=mock_response):
+        with patch("src.api.stocks.logger") as mock_logger:
             result = get_stock_prices(["TSLA"])
 
     assert result[0]["price"] == 245.0  # fallback
@@ -379,8 +379,8 @@ def test_get_stock_prices_price_is_none() -> None:
     mock_response.json.return_value = {"price": None}  # None = False
     mock_response.raise_for_status = Mock()
 
-    with patch("src.utils.requests.get", return_value=mock_response):
-        with patch("src.utils.logger") as mock_logger:
+    with patch("src.api.stocks.requests.get", return_value=mock_response):
+        with patch("src.api.stocks.logger") as mock_logger:
             result = get_stock_prices(["AAPL"])
 
     assert result[0]["price"] == 270.0  # fallback
@@ -393,8 +393,8 @@ def test_get_stock_prices_price_is_false() -> None:
     mock_response.json.return_value = {"price": False}  # False = False
     mock_response.raise_for_status = Mock()
 
-    with patch("src.utils.requests.get", return_value=mock_response):
-        with patch("src.utils.logger") as mock_logger:
+    with patch("src.api.stocks.requests.get", return_value=mock_response):
+        with patch("src.api.stocks.logger") as mock_logger:
             result = get_stock_prices(["GOOGL"])
 
     assert result[0]["price"] == 142.0  # fallback
@@ -407,8 +407,8 @@ def test_get_stock_prices_price_is_zero() -> None:
     mock_response.json.return_value = {"price": "0"}
     mock_response.raise_for_status = Mock()
 
-    with patch("src.utils.requests.get", return_value=mock_response):
-        with patch("src.utils.logger") as mock_logger:
+    with patch("src.api.stocks.requests.get", return_value=mock_response):
+        with patch("src.api.stocks.logger") as mock_logger:
             result = get_stock_prices(["MSFT"])
 
     assert result[0]["price"] == 0.0
@@ -422,8 +422,8 @@ def test_get_stock_prices_price_is_zero_int() -> None:
     mock_response.json.return_value = {"price": 0}  # 0 = False!
     mock_response.raise_for_status = Mock()
 
-    with patch("src.utils.requests.get", return_value=mock_response):
-        with patch("src.utils.logger") as mock_logger:
+    with patch("src.api.stocks.requests.get", return_value=mock_response):
+        with patch("src.api.stocks.logger") as mock_logger:
             result = get_stock_prices(["AMZN"])
 
     # 0 = False -> попадает в else
@@ -436,8 +436,8 @@ def test_get_stock_prices_http_error() -> None:
     mock_response = Mock()
     mock_response.raise_for_status.side_effect = requests.exceptions.HTTPError("404")
 
-    with patch("src.utils.requests.get", return_value=mock_response):
-        with patch("src.utils.logger") as mock_logger:
+    with patch("src.api.stocks.requests.get", return_value=mock_response):
+        with patch("src.api.stocks.logger") as mock_logger:
             result = get_stock_prices(["AAPL"])
 
     assert result[0]["price"] == 270.0
@@ -447,8 +447,8 @@ def test_get_stock_prices_http_error() -> None:
 
 def test_get_stock_prices_network_error() -> None:
     """Тест сетевой ошибки"""
-    with patch("src.utils.requests.get", side_effect=requests.exceptions.RequestException("Network error")):
-        with patch("src.utils.logger") as mock_logger:
+    with patch("src.api.stocks.requests.get", side_effect=requests.exceptions.RequestException("Network error")):
+        with patch("src.api.stocks.logger") as mock_logger:
             result = get_stock_prices(["GOOGL"])
 
     assert result[0]["price"] == 142.0
@@ -457,8 +457,8 @@ def test_get_stock_prices_network_error() -> None:
 
 def test_get_stock_prices_general_exception() -> None:
     """Тест общего исключения"""
-    with patch("src.utils.requests.get", side_effect=ValueError("Любая ошибка")):
-        with patch("src.utils.logger") as mock_logger:
+    with patch("src.api.stocks.requests.get", side_effect=ValueError("Любая ошибка")):
+        with patch("src.api.stocks.logger") as mock_logger:
             result = get_stock_prices(["AAPL"])
 
     assert result[0]["price"] == 270.0
@@ -471,8 +471,8 @@ def test_get_stock_prices_invalid_price_format() -> None:
     mock_response.json.return_value = {"price": "not a number"}
     mock_response.raise_for_status = Mock()
 
-    with patch("src.utils.requests.get", return_value=mock_response):
-        with patch("src.utils.logger") as mock_logger:
+    with patch("src.api.stocks.requests.get", return_value=mock_response):
+        with patch("src.api.stocks.logger") as mock_logger:
             result = get_stock_prices(["AMZN"])
 
     assert result[0]["price"] == 225.0  # fallback
@@ -485,8 +485,8 @@ def test_get_stock_prices_json_decode_error() -> None:
     mock_response.json.side_effect = ValueError("Invalid JSON")
     mock_response.raise_for_status = Mock()
 
-    with patch("src.utils.requests.get", return_value=mock_response):
-        with patch("src.utils.logger") as mock_logger:
+    with patch("src.api.stocks.requests.get", return_value=mock_response):
+        with patch("src.api.stocks.logger") as mock_logger:
             result = get_stock_prices(["NVDA"])
 
     assert result[0]["price"] == 188.0
@@ -495,8 +495,8 @@ def test_get_stock_prices_json_decode_error() -> None:
 
 def test_get_stock_prices_timeout_error() -> None:
     """Тест таймаута"""
-    with patch("src.utils.requests.get", side_effect=requests.exceptions.Timeout("Timeout")):
-        with patch("src.utils.logger") as mock_logger:
+    with patch("src.api.stocks.requests.get", side_effect=requests.exceptions.Timeout("Timeout")):
+        with patch("src.api.stocks.logger") as mock_logger:
             result = get_stock_prices(["SBER"])
 
     assert result[0]["price"] == 280.0

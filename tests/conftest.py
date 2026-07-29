@@ -10,14 +10,29 @@ import pytest
 
 @pytest.fixture(autouse=True)
 def disable_all_logs() -> Iterator[None]:
-    """Автоматически отключает все логи во время тестов."""
-    # Отключаем логирование полностью
-    logging.disable(logging.CRITICAL)
+    """Перенаправляет логи тестов в logs/test/, не мешая основным логам."""
+    from config.settings import LOGS_DIR, TEST_LOGS_DIR
 
-    yield  # Тесты выполняются здесь
+    TEST_LOGS_DIR.mkdir(parents=True, exist_ok=True)
+    logs_path = str(LOGS_DIR.resolve())
 
-    # Включаем логирование обратно
-    logging.disable(logging.NOTSET)
+    for name in list(logging.root.manager.loggerDict):
+        logger = logging.getLogger(name)
+        for handler in logger.handlers[:]:
+            if isinstance(handler, logging.FileHandler):
+                handler_path = str(Path(handler.baseFilename).resolve().parent)
+                if handler_path == logs_path:
+                    handler.close()
+                    logger.removeHandler(handler)
+
+                    new_handler = logging.FileHandler(
+                        TEST_LOGS_DIR / f"{name}.log",
+                        mode="w",
+                        encoding="utf-8",
+                    )
+                    logger.addHandler(new_handler)
+
+    yield
 
 
 @pytest.fixture
@@ -37,16 +52,22 @@ def no_save() -> Iterator[None]:
             return func  # Просто возвращаем функцию без обертки
 
     # Мокаем все операции с файлами
-    with patch("src.services.report_to_file", mock_report_to_file):
-        with patch("builtins.open"):  # Блокируем открытие файлов
-            with patch("json.dump"):  # Блокируем запись JSON
-                with patch("pathlib.Path.mkdir"):  # Блокируем создание папок
-                    # Перезагружаем модуль
+    with patch("src.reports.report_to_file", mock_report_to_file):
+        with patch("builtins.open"):
+            with patch("json.dump"):
+                with patch("pathlib.Path.mkdir"):
+                    # Перезагружаем модули с декоратором @report_to_file
                     import importlib
 
-                    import src.services
+                    import src.reports
 
-                    importlib.reload(src.services)
+                    importlib.reload(src.reports)
+
+                    import src.services.search
+                    import src.services.phone_finder
+
+                    importlib.reload(src.services.search)
+                    importlib.reload(src.services.phone_finder)
                     yield
 
 
@@ -61,7 +82,7 @@ def mock_currency_api() -> Iterator[None]:
     }
 
     # Мокаем requests.get
-    with patch("src.utils.requests.get") as mock_get:
+    with patch("src.api.currency.requests.get") as mock_get:
         # Создаем мок-ответ
         mock_response = Mock()
         mock_response.json.return_value = {"data": test_rates}
@@ -147,12 +168,18 @@ def sample_data_for_report() -> pd.DataFrame:
 @pytest.fixture
 def mock_report_decorator() -> Iterator[None]:
     """Фикстура для мока декоратора report_to_file."""
-    with patch("src.services.report_to_file", lambda func=None, **kwargs: (lambda f: f)):
+    with patch("src.reports.report_to_file", lambda func=None, **kwargs: (lambda f: f)):
         import importlib
 
-        import src.services
+        import src.reports
 
-        importlib.reload(src.services)
+        importlib.reload(src.reports)
+
+        import src.services.search
+        import src.services.phone_finder
+
+        importlib.reload(src.services.search)
+        importlib.reload(src.services.phone_finder)
         yield
 
 

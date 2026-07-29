@@ -2,7 +2,7 @@ from datetime import datetime
 from pathlib import Path
 
 from config import EXCEL_FILE, REPORTS_DIR, setup_main_logger
-from src.file_readers import load_transactions_from_excel
+from src.loaders import load_transactions_from_excel
 from src.reports import spending_by_category
 from src.services import find_phone_numbers, investment_bank, simple_search
 from src.utils import prepare_transactions_for_services, save_json_directly
